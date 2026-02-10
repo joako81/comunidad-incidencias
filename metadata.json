@@ -1,0 +1,5 @@
+{
+  "name": "Comunidad Valle del Cabriel 38",
+  "description": "Gestión de incidencias y comunidad para Valle del Cabriel 38. Soporte híbrido para desarrollo (Mock) y producción (Supabase).",
+  "requestFramePermissions": []
+}
