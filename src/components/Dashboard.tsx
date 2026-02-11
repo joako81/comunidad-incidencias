@@ -39,6 +39,7 @@ import {
   Home,
   Save,
 } from "lucide-react";
+import IncidentForm from "./IncidentForm"; // Asegúrate de importar el formulario si lo usas aquí, o si se pasa desde App (en tu código original estaba en App, pero para completar el contexto lo incluyo)
 
 interface DashboardProps {
   user: User;
@@ -59,8 +60,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filtros
-  const [filter, setFilter] = useState<"all" | "active" | "resolved">("all");
+  // Filtros - AÑADIDO 'pending'
+  const [filter, setFilter] = useState<
+    "all" | "active" | "resolved" | "pending"
+  >("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [categories, setCategories] = useState<string[]>([]);
 
@@ -71,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   >([]);
 
   // Configuración de Vista (EL OJO)
-  const [showViewConfigMenu, setShowViewConfigMenu] = useState(false); // Controla el menú desplegable
+  const [showViewConfigMenu, setShowViewConfigMenu] = useState(false);
   const [viewConfig, setViewConfig] = useState<IncidentViewConfig>({
     showLocation: true,
     showDate: true,
@@ -96,7 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   // Modales de Acción
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false); // RECUPERADO IMPORTAR
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Estados de carga/acción
   const [emailMessage, setEmailMessage] = useState("");
@@ -124,7 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
       }
 
-      // Vista por defecto (Si el admin guardó una config global)
+      // Vista por defecto
       if (appConfig.viewConfig) {
         setViewConfig(appConfig.viewConfig);
       }
@@ -150,7 +153,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (user.role === "admin" || user.role === "supervisor") {
       const pending = await dbGetPendingUsers();
       setPendingUsers(pending);
-      // Limpiar selección de pendientes si ya no existen
       setSelectedPendingIds((prev) =>
         prev.filter((id) => pending.some((u) => u.id === id)),
       );
@@ -311,12 +313,18 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // --- FILTROS Y ORDENACIÓN ---
   let filteredIncidents = incidents.filter((inc) => {
+    // NUEVA LÓGICA DE FILTROS INCLUYENDO "PENDING"
     const statusMatch =
       filter === "all"
         ? true
         : filter === "active"
           ? inc.status === "pendiente" || inc.status === "en_proceso"
-          : inc.status === "resuelto" || inc.status === "rechazado";
+          : filter === "resolved"
+            ? inc.status === "resuelto" || inc.status === "rechazado"
+            : filter === "pending"
+              ? inc.status === "pendiente"
+              : true; // Filtro Pendientes
+
     const categoryMatch =
       categoryFilter === "all" ? true : inc.category === categoryFilter;
     return statusMatch && categoryMatch;
@@ -409,7 +417,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             )}
           </div>
-          {/* Tarjetas de usuarios pendientes... (simplificado para no alargar código innecesariamente, usa la misma lógica de antes) */}
+          {/* Tarjetas de usuarios pendientes... */}
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {pendingUsers.map((pu) => (
               <div
@@ -456,27 +464,28 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* 2. CABECERA Y BOTONES DE ACCIÓN (AQUÍ ESTABA EL FALLO) */}
+      {/* 2. CABECERA Y BOTONES DE ACCIÓN */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 relative z-20">
         <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-200">
           Tablero de Incidencias
         </h1>
 
-        {/* BARRA DE HERRAMIENTAS COMPLETAMENTE RESTAURADA */}
+        {/* BARRA DE HERRAMIENTAS */}
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Filtros Básicos */}
+          {/* Filtros Básicos - AÑADIDO PENDIENTES */}
           <div className="flex items-center gap-2 bg-neutral-800 p-1 rounded-lg border border-neutral-700 shadow-sm">
-            {["all", "active", "resolved"].map((f) => (
+            {[
+              { id: "all", label: "Todas" },
+              { id: "pending", label: "Pendientes" }, // NUEVO BOTÓN
+              { id: "active", label: "Activas" },
+              { id: "resolved", label: "Resueltas" },
+            ].map((f) => (
               <button
-                key={f}
-                onClick={() => setFilter(f as any)}
-                className={`px-3 py-1.5 rounded font-bold text-sm transition-colors ${filter === f ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-neutral-200"}`}
+                key={f.id}
+                onClick={() => setFilter(f.id as any)}
+                className={`px-3 py-1.5 rounded font-bold text-sm transition-colors ${filter === f.id ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-neutral-200"}`}
               >
-                {f === "all"
-                  ? "Todas"
-                  : f === "active"
-                    ? "Activas"
-                    : "Resueltas"}
+                {f.label}
               </button>
             ))}
           </div>
@@ -498,7 +507,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </select>
           </div>
 
-          {/* Ordenación (Si hay opciones) */}
+          {/* Ordenación */}
           {availableSortOptions.length > 0 && (
             <div className="flex items-center gap-2 bg-neutral-200 px-3 py-1.5 rounded-lg border border-neutral-400 shadow-sm">
               <ArrowUpDown size={16} className="text-neutral-800" />
@@ -516,7 +525,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           )}
 
-          {/* --- BOTONERA DE ACCIONES (RESTORED) --- */}
+          {/* --- BOTONERA DE ACCIONES --- */}
           <div className="flex gap-2 relative">
             {/* Selección (Admin) */}
             {isAdmin && (
@@ -549,7 +558,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <Home size={18} />
             </button>
 
-            {/* --- BOTÓN OJO (VISTA) CON MENÚ DESPLEGABLE (FIXED) --- */}
+            {/* --- BOTÓN OJO (VISTA) --- */}
             <div className="relative">
               <button
                 onClick={() => setShowViewConfigMenu(!showViewConfigMenu)}
@@ -642,7 +651,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
 
-            {/* Importar (RECUPERADO) */}
+            {/* Importar */}
             <button
               onClick={() => setShowImportModal(true)}
               className="p-2 rounded border border-neutral-600 bg-neutral-800 text-neutral-400 hover:text-white"
@@ -761,7 +770,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* MODAL IMPORTAR (RECUPERADO) */}
+      {/* MODAL IMPORTAR */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-[#FAF7F2] dark:bg-[#303134] border-2 border-wood w-full max-w-lg rounded-lg shadow-2xl p-6 relative">

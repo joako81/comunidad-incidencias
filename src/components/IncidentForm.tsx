@@ -21,6 +21,8 @@ interface IncidentFormProps {
   onSuccess: () => void;
   userId: string;
   userRole: UserRole;
+  userName?: string; // NUEVO: Para guardar el nombre del creador
+  userHouse?: string; // NUEVO: Para guardar la casa del creador
   editingIncident?: Incident | null;
 }
 
@@ -32,6 +34,8 @@ const IncidentForm: React.FC<IncidentFormProps> = ({
   onSuccess,
   userId,
   userRole,
+  userName,
+  userHouse,
   editingIncident,
 }) => {
   const [loading, setLoading] = useState(false);
@@ -157,11 +161,14 @@ const IncidentForm: React.FC<IncidentFormProps> = ({
         category,
         attachments: newAttachments,
       };
+
       const { error } = editingIncident
         ? await dbUpdateIncident(editingIncident.id, data)
         : await dbCreateIncident({
             ...data,
             user_id: userId,
+            user_name: userName, // GUARDAMOS EL NOMBRE
+            user_house: userHouse, // GUARDAMOS LA CASA
             status: "pendiente",
           });
 
@@ -178,7 +185,6 @@ const IncidentForm: React.FC<IncidentFormProps> = ({
     }
   };
 
-  // CLASES CORREGIDAS PARA EL PUNTO 5 (Colores Dinámicos)
   const inputBaseClass =
     "w-full rounded-lg p-3 font-medium bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-wood outline-none transition-all";
 
