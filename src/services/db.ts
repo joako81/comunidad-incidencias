@@ -387,33 +387,6 @@ export const dbUpdateNote = async (
 };
 
 export const dbDeleteNote = async (
-  incidentId: string,
-  noteId: string,
-): Promise<DataResponse<boolean>> => {
-  if (MODO_PRUEBA) return { data: true, error: null };
-  if (!supabase) return { data: false, error: "No connection" };
-
-  const { data: incident } = await supabase
-    .from("incidents")
-    .select("notes")
-    .eq("id", incidentId)
-    .single();
-
-  if (!incident) return { data: false, error: "No se encontró la incidencia." };
-
-  const updatedNotes = (incident.notes || []).filter(
-    (n: any) => n.id !== noteId,
-  );
-
-  const { error } = await supabase
-    .from("incidents")
-    .update({ notes: updatedNotes })
-    .eq("id", incidentId);
-
-  return { data: !error, error: error?.message || null };
-};
-
-export const dbDeleteNote = async (
   noteId: string,
 ): Promise<DataResponse<boolean>> => {
   if (MODO_PRUEBA) return { data: true, error: null };
