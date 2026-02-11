@@ -154,6 +154,21 @@ export const dbUpdateUser = async (
   return { data: !error, error: error?.message || null };
 };
 
+export const dbRequestPasswordReset = async (
+  email: string,
+): Promise<DataResponse<boolean>> => {
+  if (MODO_PRUEBA) return { data: true, error: null };
+  if (!supabase) return { data: false, error: "Error de conexión" };
+
+  // Esto envía el correo real usando la plantilla de Supabase
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin, // Redirige a la página de inicio (Login) pero con sesión iniciada
+  });
+
+  // Por seguridad, no devolvemos error si el email no existe (para no dar pistas a hackers)
+  return { data: !error, error: error?.message || null };
+};
+
 // --- INCIDENTS ---
 
 export const dbGetIncidents = async (): Promise<DataResponse<Incident[]>> => {

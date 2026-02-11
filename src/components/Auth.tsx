@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { MODO_PRUEBA } from "../config";
-import { dbLogin, dbCreateUser, dbGetAppConfig } from "../services/db";
+// CORRECCIÓN: Unificamos todas las importaciones de db en una sola línea
+import {
+  dbLogin,
+  dbCreateUser,
+  dbGetAppConfig,
+  dbRequestPasswordReset,
+} from "../services/db";
 import { User, UserFieldConfig } from "../types";
 import {
   User as UserIcon,
@@ -111,16 +117,22 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }
   };
 
-  const handleForgotPwd = (e: React.FormEvent) => {
+  const handleForgotPwd = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Llamamos a Supabase de verdad
+    await dbRequestPasswordReset(resetEmail);
+
+    // Mostramos el mensaje siempre (por seguridad y feedback)
     setResetSuccess(
-      `Si existe una cuenta asociada a ${resetEmail}, recibirás un correo.`,
+      `Si existe una cuenta asociada a ${resetEmail}, recibirás un correo en unos minutos.`,
     );
+
     setTimeout(() => {
       setShowForgotPwd(false);
       setResetSuccess(null);
       setResetEmail("");
-    }, 3000);
+    }, 5000); // Damos 5 segundos para leerlo
   };
 
   return (
