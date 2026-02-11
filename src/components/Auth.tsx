@@ -1,9 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { MODO_PRUEBA } from '../config';
-import { dbLogin, dbCreateUser, dbGetAppConfig } from '../services/db';
-import { User, UserFieldConfig } from '../types';
-import { ShieldCheck, User as UserIcon, Hammer, AlertTriangle, X, Mail, Send, CheckCircle, Lock, AtSign, AlignLeft } from 'lucide-react';
-import AccessibilityWidget from './AccessibilityWidget';
+import React, { useState, useEffect } from "react";
+import { MODO_PRUEBA } from "../config";
+import { dbLogin, dbCreateUser, dbGetAppConfig } from "../services/db";
+import { User, UserFieldConfig } from "../types";
+import {
+  ShieldCheck,
+  User as UserIcon,
+  Hammer,
+  AlertTriangle,
+  X,
+  Mail,
+  Send,
+  CheckCircle,
+  Lock,
+  AtSign,
+  Home,
+  UserCircle,
+} from "lucide-react";
+import AccessibilityWidget from "./AccessibilityWidget";
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -11,318 +24,370 @@ interface AuthProps {
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   // Login States
-  const [emailOrUser, setEmailOrUser] = useState('');
-  const [password, setPassword] = useState('');
+  const [emailOrUser, setEmailOrUser] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Modal States
   const [showForgotPwd, setShowForgotPwd] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  
-  // Register States (Dynamic)
+
+  // Register States
   const [regValues, setRegValues] = useState<Record<string, string>>({});
   const [fieldsConfig, setFieldsConfig] = useState<UserFieldConfig[]>([]);
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
-  
+
   // Forgot Pwd State
-  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmail, setResetEmail] = useState("");
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (showRegister) {
-        dbGetAppConfig().then(config => setFieldsConfig(config.userFields || []));
+      dbGetAppConfig().then((config) =>
+        setFieldsConfig(config.userFields || []),
+      );
     }
   }, [showRegister]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      const { data, error } = await dbLogin(emailOrUser, password);
-      if (error) throw new Error(error);
-      if (data) onLogin(data);
-    } catch (err: any) {
-      setError(err.message || "Error al iniciar sesión");
+      const response = await dbLogin(emailOrUser, password);
+      if (response.error) {
+        setError(response.error);
+      } else if (response.data) {
+        onLogin(response.data);
+      }
+    } catch (err) {
+      setError("Error de conexión. Verifica tu internet.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDemoLogin = (role: 'admin' | 'supervisor' | 'user') => {
-    const demoEmail = role === 'admin' ? 'admin@vc38.com' 
-                    : role === 'supervisor' ? 'supervisor@vc38.com' 
-                    : 'vecino@vc38.com';
-    setEmailOrUser(demoEmail);
-    setPassword('123'); // Auto-fill mock password
-    
-    // Auto submit effectively
-    setTimeout(() => {
-        dbLogin(demoEmail, '123').then(({ data, error }) => {
-            if (data) onLogin(data);
-            if (error) setError(error);
-        });
-    }, 200);
-  };
-
-  const submitRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    // Extract core fields
-    const username = regValues['username'] || '';
-    const pass = regValues['password'] || '';
-    const email = regValues['email'] || '';
-    const fullName = regValues['full_name'] || '';
-    const houseNumber = regValues['house_number'] || '';
+    setError(null);
 
-    // Extract custom fields
-    const systemKeys = ['username', 'password', 'email', 'full_name', 'house_number', 'role'];
-    const custom_fields: Record<string, string> = {};
-    
-    fieldsConfig.forEach(field => {
-        if (!systemKeys.includes(field.key) && field.active) {
-            custom_fields[field.label] = regValues[field.key] || '';
-        }
+    // Validar campos obligatorios manuales
+    if (!regValues.full_name || !regValues.house_number) {
+      setError("Por favor rellena Nombre y Nº de Casa");
+      setLoading(false);
+      return;
+    }
+
+    const newUser: any = {
+      email: regValues.email,
+      username: regValues.username,
+      password: regValues.password,
+      full_name: regValues.full_name, // CAMPO FIJO AÑADIDO
+      house_number: regValues.house_number, // CAMPO FIJO AÑADIDO
+      role: "user",
+      receive_emails: true,
+      custom_fields: {},
+    };
+
+    // Campos extra dinámicos
+    fieldsConfig.forEach((f) => {
+      if (!f.isSystem && regValues[f.key]) {
+        newUser.custom_fields[f.key] = regValues[f.key];
+      }
     });
 
-    const { error } = await dbCreateUser({
-        email,
-        username,
-        full_name: fullName,
-        house_number: houseNumber,
-        role: 'user',
-        receive_emails: true,
-        password: pass,
-        custom_fields
-    });
+    const response = await dbCreateUser(newUser);
     setLoading(false);
 
-    if (error) {
-        alert(error);
+    if (response.error) {
+      setError(response.error);
     } else {
-        setRegSuccess("Solicitud enviada correctamente. El administrador ha sido notificado y recibirás un correo cuando tu cuenta sea aprobada.");
+      setRegSuccess(
+        "Cuenta solicitada correctamente. Un administrador revisará tu solicitud.",
+      );
+      setTimeout(() => {
+        setShowRegister(false);
+        setRegSuccess(null);
+        setRegValues({});
+      }, 3000);
     }
   };
 
-  const submitForgotPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setTimeout(() => {
-        setResetSuccess(`Se ha enviado un enlace de recuperación a ${resetEmail}`);
-        setResetEmail('');
-    }, 1000);
-  };
-
-  const closeModals = () => {
-    setShowForgotPwd(false);
-    setShowRegister(false);
-    setRegSuccess(null);
-    setResetSuccess(null);
-    setRegValues({});
-  }
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[#E8DCCA] dark:bg-[#202124] transition-colors duration-300">
-      <AccessibilityWidget />
-      
-      {/* Main Login Card - Light: Bone White (#FAF7F2) | Dark: Google Surface (#303134) */}
-      <div className="w-full max-w-md bg-[#FAF7F2] dark:bg-[#303134] border-2 border-[#8B5A2B]/40 dark:border-neutral-700 rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] p-8 animate-in fade-in zoom-in duration-300 card relative overflow-hidden transition-colors">
-        
-        {/* Decorative Top Bar */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-wood"></div>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Elementos decorativos de fondo */}
+      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-wood to-wood-hover"></div>
 
-        <div className="text-center mb-8 pt-2">
-          <h1 className="text-3xl font-black text-neutral-900 dark:text-neutral-100 mb-2">Valle del Cabriel 38</h1>
-          <p className="text-neutral-600 dark:text-neutral-400 font-bold">Portal de Gestión de Comunidad</p>
+      <div className="bg-card w-full max-w-md p-8 rounded-xl shadow-2xl border-t-4 border-wood relative z-10 card animate-in fade-in zoom-in duration-500">
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="bg-wood/10 p-4 rounded-full ring-1 ring-wood/20">
+              <ShieldCheck size={48} className="text-wood" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-black text-txt-primary mb-2 tracking-tight">
+            Comunidad 38
+          </h1>
+          <p className="text-txt-muted text-sm">
+            Gestión de Incidencias y Vecinos
+          </p>
+
+          {MODO_PRUEBA && (
+            <div className="mt-4 bg-yellow-100 text-yellow-800 text-xs px-3 py-1 rounded-full inline-flex items-center gap-2">
+              <AlertTriangle size={12} /> MODO PRUEBA
+            </div>
+          )}
         </div>
 
         {error && (
-          <div className="mb-6 p-3 bg-red-100 dark:bg-red-900/30 border-l-4 border-red-600 text-red-900 dark:text-red-200 rounded font-medium flex items-center gap-2 text-sm shadow-sm">
-            <AlertTriangle size={18} className="shrink-0" />
+          <div className="mb-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded text-sm flex items-start gap-2">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-black text-neutral-900 dark:text-neutral-300 mb-1">Correo o Usuario</label>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-txt-secondary uppercase tracking-wider ml-1">
+              Usuario o Email
+            </label>
             <div className="relative">
-                <Mail className="absolute left-3 top-3 text-neutral-200" size={18} />
-                <input
+              <UserIcon
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted"
+                size={18}
+              />
+              <input
                 type="text"
-                required
                 value={emailOrUser}
                 onChange={(e) => setEmailOrUser(e.target.value)}
-                // Inputs kept dark gray (neutral-600) in both modes for contrast with white text, or adapted slightly for google dark
-                className="w-full bg-neutral-600 dark:bg-[#3C4043] border-2 border-neutral-400 dark:border-neutral-600 text-white placeholder-neutral-300 px-4 py-3 pl-10 rounded focus:outline-none focus:border-wood focus:ring-1 focus:ring-wood transition-colors font-medium"
-                placeholder="tu@email.com o usuario"
-                />
+                className="w-full bg-bg-input border border-border rounded-lg py-2.5 pl-10 pr-4 text-txt-primary focus:border-wood outline-none"
+                placeholder="ej. vecino@vc38.com"
+                required
+              />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-black text-neutral-900 dark:text-neutral-300 mb-1">Contraseña</label>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-txt-secondary uppercase tracking-wider ml-1">
+              Contraseña
+            </label>
             <div className="relative">
-                <Lock className="absolute left-3 top-3 text-neutral-200" size={18} />
-                <input
+              <Lock
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted"
+                size={18}
+              />
+              <input
                 type="password"
-                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-neutral-600 dark:bg-[#3C4043] border-2 border-neutral-400 dark:border-neutral-600 text-white placeholder-neutral-300 px-4 py-3 pl-10 rounded focus:outline-none focus:border-wood focus:ring-1 focus:ring-wood transition-colors font-medium"
+                className="w-full bg-bg-input border border-border rounded-lg py-2.5 pl-10 pr-4 text-txt-primary focus:border-wood outline-none"
                 placeholder="••••••••"
-                />
+                required
+              />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-wood hover:bg-wood-hover text-white font-bold py-3 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform active:scale-95 duration-150"
+            className="w-full bg-wood hover:bg-wood-hover text-white py-3 rounded-lg font-bold text-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-70"
           >
-            {loading ? 'Verificando...' : 'Iniciar Sesión'}
+            {loading ? (
+              <Hammer className="animate-spin" size={20} />
+            ) : (
+              "Iniciar Sesión"
+            )}
           </button>
         </form>
 
-        <div className="mt-6 flex flex-col gap-3 text-sm text-center font-semibold">
-             <button onClick={() => setShowRegister(true)} className="text-wood hover:text-wood-hover hover:underline transition-colors">
-                 ¿Eres nuevo? Solicita tu acceso aquí
-             </button>
-             <button onClick={() => setShowForgotPwd(true)} className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 underline transition-colors">
-                 Olvidé mi contraseña
-             </button>
+        <div className="mt-6 text-center pt-6 border-t border-border-subtle">
+          <p className="text-txt-muted text-sm mb-3">
+            ¿Eres nuevo en la comunidad?
+          </p>
+          <button
+            onClick={() => setShowRegister(true)}
+            className="text-wood font-bold border border-wood px-4 py-2 rounded-lg hover:bg-wood/5 text-sm"
+          >
+            Solicitar Acceso
+          </button>
         </div>
-
-        {MODO_PRUEBA && (
-          <div className="mt-8 pt-6 border-t border-neutral-300 dark:border-neutral-700">
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mb-4 uppercase tracking-widest font-bold">
-              Modo Prueba Activo (Autocompletar)
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() => handleDemoLogin('admin')}
-                className="flex flex-col items-center p-2 bg-neutral-200 dark:bg-[#3C4043] hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded border border-neutral-300 dark:border-neutral-600 transition-all group"
-              >
-                <ShieldCheck className="text-neutral-600 dark:text-neutral-400 group-hover:text-wood mb-1" size={20} />
-                <span className="text-[10px] text-neutral-700 dark:text-neutral-300 font-bold">Admin</span>
-              </button>
-              <button
-                onClick={() => handleDemoLogin('supervisor')}
-                className="flex flex-col items-center p-2 bg-neutral-200 dark:bg-[#3C4043] hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded border border-neutral-300 dark:border-neutral-600 transition-all group"
-              >
-                <Hammer className="text-neutral-600 dark:text-neutral-400 group-hover:text-wood mb-1" size={20} />
-                <span className="text-[10px] text-neutral-700 dark:text-neutral-300 font-bold">Superv.</span>
-              </button>
-              <button
-                onClick={() => handleDemoLogin('user')}
-                className="flex flex-col items-center p-2 bg-neutral-200 dark:bg-[#3C4043] hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded border border-neutral-300 dark:border-neutral-600 transition-all group"
-              >
-                <UserIcon className="text-neutral-600 dark:text-neutral-400 group-hover:text-wood mb-1" size={20} />
-                <span className="text-[10px] text-neutral-700 dark:text-neutral-300 font-bold">Vecino</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* --- MODALS --- */}
-      
-      {/* Forgot Password Modal */}
-      {showForgotPwd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-[#FAF7F2] dark:bg-[#303134] border-2 border-wood dark:border-neutral-600 w-full max-w-md rounded-lg shadow-2xl p-6 relative">
-                <button onClick={closeModals} className="absolute top-4 right-4 text-neutral-500 hover:text-black dark:hover:text-white"><X size={20}/></button>
-                
-                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-4 flex items-center gap-2">Recuperar Contraseña</h2>
-                
-                {resetSuccess ? (
-                    <div className="text-center py-6 text-green-700 dark:text-green-400">
-                        <CheckCircle size={48} className="mx-auto mb-4"/>
-                        <p className="font-bold">{resetSuccess}</p>
-                        <button onClick={closeModals} className="mt-4 text-sm underline text-neutral-600 dark:text-neutral-400">Cerrar</button>
-                    </div>
-                ) : (
-                    <form onSubmit={submitForgotPassword} className="space-y-4">
-                        <p className="text-sm text-neutral-600 dark:text-neutral-300 font-medium">Introduce tu correo electrónico y te enviaremos las instrucciones.</p>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-3 text-neutral-200" size={18}/>
-                            <input 
-                                type="email" 
-                                required
-                                value={resetEmail} 
-                                onChange={e => setResetEmail(e.target.value)}
-                                className="w-full bg-neutral-600 dark:bg-[#3C4043] border border-neutral-400 dark:border-neutral-600 rounded p-2 pl-10 text-white focus:border-wood placeholder-neutral-300"
-                                placeholder="tu@email.com"
-                            />
-                        </div>
-                        <button type="submit" className="w-full bg-wood hover:bg-wood-hover text-white py-2 rounded font-bold shadow-md">
-                            Enviar Enlace
-                        </button>
-                    </form>
-                )}
-            </div>
-        </div>
-      )}
+      <AccessibilityWidget />
 
-      {/* Register User Modal (Dynamic) */}
+      {/* MODAL DE REGISTRO */}
       {showRegister && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-[#FAF7F2] dark:bg-[#303134] border-2 border-wood dark:border-neutral-600 w-full max-w-lg rounded-lg shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-                <button onClick={closeModals} className="absolute top-4 right-4 text-neutral-500 hover:text-black dark:hover:text-white"><X size={20}/></button>
-                
-                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-4 flex items-center gap-2">Solicitar Alta de Vecino</h2>
-                
-                {regSuccess ? (
-                    <div className="text-center py-6 text-green-700 dark:text-green-400">
-                        <CheckCircle size={48} className="mx-auto mb-4"/>
-                        <p className="font-bold text-lg">{regSuccess}</p>
-                        <button onClick={closeModals} className="mt-6 bg-neutral-800 dark:bg-neutral-700 text-white px-4 py-2 rounded font-bold">Entendido</button>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-neutral-800 border border-neutral-700 w-full max-w-md rounded-lg shadow-2xl p-6 relative my-8">
+            <button
+              onClick={() => setShowRegister(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+
+            <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
+              <ShieldCheck className="text-wood" /> Registro Vecinal
+            </h2>
+
+            {regSuccess ? (
+              <div className="bg-green-900/30 border border-green-500 text-green-200 p-6 rounded text-center">
+                <CheckCircle
+                  size={48}
+                  className="mx-auto mb-4 text-green-400"
+                />
+                <h3 className="text-xl font-bold text-white mb-2">
+                  ¡Solicitud Enviada!
+                </h3>
+                <p>{regSuccess}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  {/* CAMPO: EMAIL */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <AtSign
+                        size={16}
+                        className="absolute left-3 top-3 text-neutral-500"
+                      />
+                      <input
+                        type="email"
+                        required
+                        value={regValues.email || ""}
+                        onChange={(e) =>
+                          setRegValues({ ...regValues, email: e.target.value })
+                        }
+                        className="w-full bg-neutral-700 border border-neutral-600 rounded p-2 pl-9 text-white focus:border-wood placeholder-neutral-400"
+                        placeholder="tu@email.com"
+                      />
                     </div>
-                ) : (
-                    <form onSubmit={submitRegister} className="space-y-4">
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-3 text-sm text-blue-900 dark:text-blue-200 mb-4">
-                            <p className="font-medium">El administrador recibirá un correo para verificar tu identidad antes de activar tu cuenta.</p>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                             {/* Render dynamic fields excluding Role */}
-                             {fieldsConfig.filter(f => f.active && f.key !== 'role').map(field => {
-                                 let type = 'text';
-                                 if (field.key === 'password') type = 'password';
-                                 if (field.key === 'email') type = 'email';
+                  </div>
 
-                                 return (
-                                     <div key={field.id} className={field.key === 'email' || field.key === 'full_name' ? 'col-span-2' : ''}>
-                                        <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">{field.label}</label>
-                                        <div className="relative">
-                                            {field.key === 'username' && <AtSign size={14} className="absolute left-2 top-2.5 text-neutral-300"/>}
-                                            {field.key === 'password' && <Lock size={14} className="absolute left-2 top-2.5 text-neutral-300"/>}
-                                            {field.key === 'email' && <Mail size={14} className="absolute left-2 top-2.5 text-neutral-300"/>}
-                                            {!['username','password','email'].includes(field.key) && <AlignLeft size={14} className="absolute left-2 top-2.5 text-neutral-300 opacity-70"/>}
-                                            
-                                            <input 
-                                                type={type} 
-                                                required={field.key === 'username' || field.key === 'password'}
-                                                value={regValues[field.key] || ''}
-                                                onChange={e => setRegValues({...regValues, [field.key]: e.target.value})}
-                                                className="w-full bg-neutral-600 dark:bg-[#3C4043] border border-neutral-400 dark:border-neutral-600 rounded p-2 pl-8 text-white focus:border-wood placeholder-neutral-300 text-sm"
-                                                placeholder={field.placeholder}
-                                            />
-                                        </div>
-                                     </div>
-                                 );
-                             })}
-                        </div>
+                  {/* CAMPO: USUARIO */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
+                      Usuario
+                    </label>
+                    <div className="relative">
+                      <UserIcon
+                        size={16}
+                        className="absolute left-3 top-3 text-neutral-500"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={regValues.username || ""}
+                        onChange={(e) =>
+                          setRegValues({
+                            ...regValues,
+                            username: e.target.value,
+                          })
+                        }
+                        className="w-full bg-neutral-700 border border-neutral-600 rounded p-2 pl-9 text-white focus:border-wood placeholder-neutral-400"
+                        placeholder="NombreUsuario"
+                      />
+                    </div>
+                  </div>
 
-                        <button type="submit" disabled={loading} className="w-full bg-wood hover:bg-wood-hover text-white py-3 rounded font-bold flex items-center justify-center gap-2 shadow-md">
-                            <Send size={16} /> {loading ? 'Enviando...' : 'Enviar Solicitud'}
-                        </button>
-                    </form>
-                )}
-            </div>
+                  {/* CAMPO: CONTRASEÑA */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
+                      Contraseña
+                    </label>
+                    <div className="relative">
+                      <Lock
+                        size={16}
+                        className="absolute left-3 top-3 text-neutral-500"
+                      />
+                      <input
+                        type="password"
+                        required
+                        value={regValues.password || ""}
+                        onChange={(e) =>
+                          setRegValues({
+                            ...regValues,
+                            password: e.target.value,
+                          })
+                        }
+                        className="w-full bg-neutral-700 border border-neutral-600 rounded p-2 pl-9 text-white focus:border-wood placeholder-neutral-400"
+                        placeholder="******"
+                      />
+                    </div>
+                  </div>
+
+                  {/* CAMPO: NOMBRE COMPLETO (AÑADIDO MANUALMENTE) */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
+                      Nombre Completo
+                    </label>
+                    <div className="relative">
+                      <UserCircle
+                        size={16}
+                        className="absolute left-3 top-3 text-neutral-500"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={regValues.full_name || ""}
+                        onChange={(e) =>
+                          setRegValues({
+                            ...regValues,
+                            full_name: e.target.value,
+                          })
+                        }
+                        className="w-full bg-neutral-700 border border-neutral-600 rounded p-2 pl-9 text-white focus:border-wood placeholder-neutral-400"
+                        placeholder="Nombre y Apellidos"
+                      />
+                    </div>
+                  </div>
+
+                  {/* CAMPO: CASA/PISO (AÑADIDO MANUALMENTE) */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
+                      Nº Casa / Piso
+                    </label>
+                    <div className="relative">
+                      <Home
+                        size={16}
+                        className="absolute left-3 top-3 text-neutral-500"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={regValues.house_number || ""}
+                        onChange={(e) =>
+                          setRegValues({
+                            ...regValues,
+                            house_number: e.target.value,
+                          })
+                        }
+                        className="w-full bg-neutral-700 border border-neutral-600 rounded p-2 pl-9 text-white focus:border-wood placeholder-neutral-400"
+                        placeholder="Ej: 4º B o Casa 12"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-wood hover:bg-wood-hover text-white py-3 rounded font-bold flex items-center justify-center gap-2 shadow-md mt-4"
+                >
+                  <Send size={16} />{" "}
+                  {loading ? "Enviando..." : "Enviar Solicitud"}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       )}
-
     </div>
   );
 };
