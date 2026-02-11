@@ -1,5 +1,7 @@
 // CAMBIO: Detecta automáticamente si estamos en desarrollo (local) o producción
-export const MODO_PRUEBA = import.meta.env.DEV;
+//export const MODO_PRUEBA = import.meta.env.DEV;
+// si modo prueba pon true
+export const MODO_PRUEBA = false;
 
 export const APP_NAME = "Comunidad Valle del Cabriel 38";
 export const STORAGE_KEYS = {

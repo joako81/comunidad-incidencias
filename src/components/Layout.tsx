@@ -7,7 +7,6 @@ import {
   UserCircle,
   X,
   Mail,
-  Bell,
   UserPlus,
 } from "lucide-react";
 import { dbLogout, dbUpdateUser, dbGetPendingUsers } from "../services/db";
@@ -35,11 +34,14 @@ const Layout: React.FC<LayoutProps> = ({
   const [emailPref, setEmailPref] = useState(user.receive_emails || false);
   const [savingPref, setSavingPref] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+
+  // ESTADO PARA CONTROLAR EL LOGO: Si falla la carga, ponemos esto a true
+  const [logoError, setLogoError] = useState(false);
+
   const navigate = useNavigate();
 
   const canManageUsers = user.role === "admin" || user.role === "supervisor";
 
-  // Check for pending users periodically if admin/supervisor
   useEffect(() => {
     if (canManageUsers) {
       const checkPending = async () => {
@@ -47,7 +49,7 @@ const Layout: React.FC<LayoutProps> = ({
         setPendingCount(pending.length);
       };
       checkPending();
-      const interval = setInterval(checkPending, 5000); // Check every 5 seconds
+      const interval = setInterval(checkPending, 5000);
       return () => clearInterval(interval);
     }
   }, [user.role, canManageUsers]);
@@ -66,9 +68,7 @@ const Layout: React.FC<LayoutProps> = ({
   };
 
   const handleNotificationClick = () => {
-    // Navigate to dashboard to ensure we are there
     navigate("/");
-    // Scroll to top to see the pending requests box
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -76,35 +76,25 @@ const Layout: React.FC<LayoutProps> = ({
     <div className="min-h-screen bg-background text-neutral-200 transition-colors duration-300">
       {/* Navbar */}
       <nav className="fixed top-0 w-full h-16 bg-neutral-900 border-b border-wood/20 z-40 px-4 flex items-center justify-between shadow-sm">
-        {/* --- INICIO ZONA LOGOTIPO --- */}
+        {/* --- ZONA LOGOTIPO (SOLUCIÓN ROBUSTA) --- */}
         <div className="flex items-center gap-3">
-          {/* PARA CAMBIAR EL TAMAÑO DEL LOGO:
-             Modifica la clase 'h-12' en la línea de abajo.
-             - h-10 : Pequeño (40px)
-             - h-12 : Normal (48px) -> Recomendado
-             - h-16 : Grande (64px)
-             - h-20 : Muy Grande (80px)
-          */}
-          <img
-            src="/logo_nuevo_letras_blancas-removebg-preview.png"
-            alt="Logo Comunidad"
-            className="h-12 w-auto object-contain transition-all duration-300"
-            onError={(e) => {
-              // Si la imagen falla, la ocultamos y mostramos la V de respaldo
-              e.currentTarget.style.display = "none";
-              document
-                .getElementById("fallback-logo")
-                ?.classList.remove("hidden");
-            }}
-          />
-
-          {/* Logotipo de respaldo (solo se ve si falla la imagen) */}
-          <div
-            id="fallback-logo"
-            className="hidden w-10 h-10 bg-wood rounded-md flex items-center justify-center font-bold text-white text-xl shadow-inner border border-white/20"
-          >
-            V
-          </div>
+          {/* Lógica: Si NO hay error, muestra imagen. Si HAY error, muestra la V */}
+          {!logoError ? (
+            <img
+              src="/logo_nuevo_letras_blancas-removebg-preview.png"
+              alt="Logo Comunidad"
+              className="h-12 w-auto object-contain transition-all duration-300"
+              onError={() => {
+                console.log("Error cargando logo, mostrando respaldo");
+                setLogoError(true); // Esto fuerza a React a mostrar la V
+              }}
+            />
+          ) : (
+            // LOGOTIPO DE RESPALDO (La "V")
+            <div className="w-10 h-10 bg-wood rounded-md flex items-center justify-center font-bold text-white text-xl shadow-inner border border-white/20 animate-in fade-in">
+              V
+            </div>
+          )}
 
           <span className="font-bold text-lg tracking-tight hidden sm:block text-neutral-200 leading-tight">
             Valle del
@@ -120,7 +110,6 @@ const Layout: React.FC<LayoutProps> = ({
               {user.full_name || user.email}
             </span>
 
-            {/* NOTIFICATION ICON BETWEEN PROFILE NAME AND ROLE */}
             {canManageUsers && pendingCount > 0 && (
               <button
                 onClick={handleNotificationClick}
@@ -151,7 +140,7 @@ const Layout: React.FC<LayoutProps> = ({
             <button
               onClick={onToggleUserView}
               className={`p-2 rounded transition-colors border border-transparent ${showUserView ? "bg-neutral-800 text-white border-wood" : "text-neutral-400 hover:text-white"}`}
-              title="Gestión de Usuarios (Crear Manual)"
+              title="Gestión de Usuarios"
             >
               <UserCog size={24} />
             </button>
@@ -177,13 +166,10 @@ const Layout: React.FC<LayoutProps> = ({
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="pt-24 px-4 pb-20 max-w-7xl mx-auto">{children}</main>
 
-      {/* Floating Accessibility Widget */}
       <AccessibilityWidget />
 
-      {/* Profile Modal */}
       {showProfile && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-neutral-800 border-2 border-neutral-700 w-full max-w-sm rounded-lg shadow-2xl p-6 relative card">
@@ -196,14 +182,12 @@ const Layout: React.FC<LayoutProps> = ({
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <UserCircle /> Mis Preferencias
             </h2>
-
             <div className="space-y-4">
               <p className="text-sm text-neutral-400">
                 Hola,{" "}
                 <span className="text-wood font-bold">{user.full_name}</span>.
                 Configura aquí tus notificaciones.
               </p>
-
               <label className="flex items-center gap-3 p-3 bg-neutral-900 rounded border border-neutral-700 cursor-pointer hover:border-wood transition-colors">
                 <input
                   type="checkbox"
@@ -220,7 +204,6 @@ const Layout: React.FC<LayoutProps> = ({
                   </span>
                 </div>
               </label>
-
               <button
                 onClick={savePreferences}
                 disabled={savingPref}
