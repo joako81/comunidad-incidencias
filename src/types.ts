@@ -59,6 +59,7 @@ export interface IncidentViewConfig {
   showLocation: boolean;
   showDate: boolean;
   showUser: boolean;
+  userVisibilityMode: "public" | "staff_only"; // NUEVO: Control de privacidad
   showPriority: boolean;
   showCategory: boolean;
 }
@@ -87,16 +88,17 @@ export interface SortOptionConfig {
 
 export interface UserFieldConfig {
   id: string;
-  key: string; // 'username', 'password', 'email', 'full_name', 'house_number', 'role' or custom
+  key: string;
   label: string;
   placeholder: string;
   active: boolean;
-  isSystem: boolean; // System fields (username, password...) cannot be deleted, only hidden (some not even hidden)
+  isSystem: boolean;
 }
 
 export interface AppConfig {
   categories: string[];
   sortOptions: SortOptionConfig[];
   userFields: UserFieldConfig[];
-  pendingAccountMessage: string; // New field for customizable waiting message
+  pendingAccountMessage: string;
+  viewConfig?: IncidentViewConfig;
 }

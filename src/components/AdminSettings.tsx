@@ -16,6 +16,10 @@ import {
   Type,
   TextCursor,
   MessageCircle,
+  LayoutTemplate,
+  Tag,
+  Users,
+  ShieldAlert,
 } from "lucide-react";
 import { dbGetAppConfig, dbSaveAppConfig } from "../services/db";
 import {
@@ -24,6 +28,7 @@ import {
   SortDirection,
   Incident,
   UserFieldConfig,
+  IncidentViewConfig,
 } from "../types";
 
 interface AdminSettingsProps {
@@ -31,7 +36,7 @@ interface AdminSettingsProps {
   onUpdate: () => void;
 }
 
-type Tab = "categories" | "sorting" | "users";
+type Tab = "categories" | "sorting" | "users" | "view";
 
 const FIELD_LABELS: { key: keyof Incident; label: string }[] = [
   { key: "created_at", label: "Fecha Creación" },
@@ -45,9 +50,18 @@ const FIELD_LABELS: { key: keyof Incident; label: string }[] = [
   { key: "location", label: "Ubicación" },
 ];
 
+const DEFAULT_VIEW_CONFIG: IncidentViewConfig = {
+  showLocation: true,
+  showDate: true,
+  showUser: true,
+  userVisibilityMode: "public", // Valor por defecto
+  showPriority: true,
+  showCategory: true,
+};
+
 const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose, onUpdate }) => {
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("categories");
+  const [activeTab, setActiveTab] = useState<Tab>("view");
   const [error, setError] = useState<string | null>(null);
 
   // Edit States Categories
@@ -78,6 +92,12 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose, onUpdate }) => {
 
   useEffect(() => {
     dbGetAppConfig().then((c) => {
+      // Asegurar que exista viewConfig y userVisibilityMode al cargar
+      if (!c.viewConfig) {
+        c.viewConfig = DEFAULT_VIEW_CONFIG;
+      } else if (!c.viewConfig.userVisibilityMode) {
+        c.viewConfig.userVisibilityMode = "public";
+      }
       setConfig(c);
       if (c.pendingAccountMessage) setPendingMsg(c.pendingAccountMessage);
     });
@@ -90,6 +110,29 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose, onUpdate }) => {
       onUpdate();
       onClose();
     }
+  };
+
+  // --- VIEW CONFIG LOGIC ---
+  const toggleViewOption = (key: keyof IncidentViewConfig) => {
+    if (!config || !config.viewConfig) return;
+    setConfig({
+      ...config,
+      viewConfig: {
+        ...config.viewConfig,
+        [key]: !config.viewConfig[key],
+      },
+    });
+  };
+
+  const setPrivacyMode = (mode: "public" | "staff_only") => {
+    if (!config || !config.viewConfig) return;
+    setConfig({
+      ...config,
+      viewConfig: {
+        ...config.viewConfig,
+        userVisibilityMode: mode,
+      },
+    });
   };
 
   if (!config) return null;
@@ -299,24 +342,30 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose, onUpdate }) => {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-neutral-700 bg-neutral-800">
+        <div className="flex border-b border-neutral-700 bg-neutral-800 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab("view")}
+            className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${activeTab === "view" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
+          >
+            <LayoutTemplate size={16} className="inline mr-2" /> Visualización
+          </button>
           <button
             onClick={() => setActiveTab("categories")}
-            className={`flex-1 py-3 font-bold text-sm transition-colors ${activeTab === "categories" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
+            className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${activeTab === "categories" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
           >
-            Categorías
+            <Tag size={16} className="inline mr-2" /> Categorías
           </button>
           <button
             onClick={() => setActiveTab("sorting")}
-            className={`flex-1 py-3 font-bold text-sm transition-colors ${activeTab === "sorting" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
+            className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${activeTab === "sorting" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
           >
-            Ordenación
+            <ArrowUp size={16} className="inline mr-2" /> Ordenación
           </button>
           <button
             onClick={() => setActiveTab("users")}
-            className={`flex-1 py-3 font-bold text-sm transition-colors ${activeTab === "users" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
+            className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${activeTab === "users" ? "text-wood border-b-2 border-wood bg-neutral-900" : "text-neutral-400 hover:text-neutral-200"}`}
           >
-            Campos Vecino
+            <Type size={16} className="inline mr-2" /> Campos Vecino
           </button>
         </div>
 
@@ -332,6 +381,156 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onClose, onUpdate }) => {
 
         {/* Content */}
         <div className="flex-grow overflow-y-auto p-6 bg-neutral-800 custom-scrollbar">
+          {/* TAB: VISUALIZACIÓN (NUEVA LÓGICA) */}
+          {activeTab === "view" && config.viewConfig && (
+            <div className="space-y-6">
+              <div className="bg-neutral-900 p-4 rounded-lg border border-neutral-700">
+                <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                  <Eye size={18} className="text-wood" /> Control de Tarjetas
+                </h3>
+                <p className="text-neutral-400 text-sm mb-4">
+                  Selecciona qué datos quieres que sean visibles en las tarjetas
+                  de incidencias.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* CONTROL DE VECINO CON PRIVACIDAD */}
+                  <div className="col-span-1 md:col-span-2 bg-neutral-800 p-4 rounded border border-neutral-600">
+                    <label className="flex items-center gap-3 cursor-pointer hover:text-wood transition-colors mb-3">
+                      <input
+                        type="checkbox"
+                        checked={config.viewConfig.showUser}
+                        onChange={() => toggleViewOption("showUser")}
+                        className="w-5 h-5 accent-wood"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-white font-bold text-lg">
+                          Mostrar Vecino y Propiedad
+                        </span>
+                        <span className="text-xs text-neutral-400">
+                          Nombre del vecino y su casa/piso
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* SUB-SELECTOR DE PRIVACIDAD */}
+                    {config.viewConfig.showUser && (
+                      <div className="ml-8 mt-2 p-3 bg-neutral-900/50 rounded border border-neutral-700 animate-in fade-in slide-in-from-top-1">
+                        <p className="text-xs font-bold text-wood mb-2 uppercase">
+                          ¿Quién puede ver esta información?
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="privacy"
+                              checked={
+                                config.viewConfig.userVisibilityMode ===
+                                "public"
+                              }
+                              onChange={() => setPrivacyMode("public")}
+                              className="accent-green-500 w-4 h-4"
+                            />
+                            <span className="text-sm text-white flex items-center gap-2">
+                              <Users size={14} className="text-green-500" />{" "}
+                              Visible para todos los vecinos
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="privacy"
+                              checked={
+                                config.viewConfig.userVisibilityMode ===
+                                "staff_only"
+                              }
+                              onChange={() => setPrivacyMode("staff_only")}
+                              className="accent-red-500 w-4 h-4"
+                            />
+                            <span className="text-sm text-white flex items-center gap-2">
+                              <ShieldAlert size={14} className="text-red-500" />{" "}
+                              Solo visible para Admin y Supervisores
+                            </span>
+                          </label>
+                        </div>
+                        <p className="text-[10px] text-neutral-500 mt-2 italic">
+                          * El creador de la incidencia siempre podrá ver sus
+                          propios datos.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* OTROS CAMPOS */}
+                  <label className="flex items-center gap-3 p-3 bg-neutral-800 rounded border border-neutral-600 cursor-pointer hover:border-wood transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={config.viewConfig.showDate}
+                      onChange={() => toggleViewOption("showDate")}
+                      className="w-5 h-5 accent-wood"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-white font-medium">
+                        Mostrar Fecha
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        Muestra "Hace X días/horas"
+                      </span>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 bg-neutral-800 rounded border border-neutral-600 cursor-pointer hover:border-wood transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={config.viewConfig.showLocation}
+                      onChange={() => toggleViewOption("showLocation")}
+                      className="w-5 h-5 accent-wood"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-white font-medium">
+                        Mostrar Ubicación
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        Muestra el lugar de la incidencia
+                      </span>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 bg-neutral-800 rounded border border-neutral-600 cursor-pointer hover:border-wood transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={config.viewConfig.showPriority}
+                      onChange={() => toggleViewOption("showPriority")}
+                      className="w-5 h-5 accent-wood"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-white font-medium">
+                        Mostrar Prioridad
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        Etiqueta Alta/Media/Baja
+                      </span>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 bg-neutral-800 rounded border border-neutral-600 cursor-pointer hover:border-wood transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={config.viewConfig.showCategory}
+                      onChange={() => toggleViewOption("showCategory")}
+                      className="w-5 h-5 accent-wood"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-white font-medium">
+                        Mostrar Categoría
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        Etiqueta Electricidad...
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* CATEGORIES TAB */}
           {activeTab === "categories" && (
             <div className="space-y-4">

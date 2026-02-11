@@ -25,6 +25,9 @@ import {
   ChevronRight,
   Film,
   AlertTriangle,
+  Home,
+  Shield,
+  EyeOff,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { formatDistanceToNow, format } from "date-fns";
@@ -120,6 +123,11 @@ const IncidentList: React.FC<IncidentListProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
+  // Auxiliares de permisos
+  const isAdmin = userRole === "admin";
+  const isSupervisor = userRole === "supervisor";
+  const isStaff = isAdmin || isSupervisor;
+
   const handleAddNote = async (incidentId: string) => {
     if (!newNote.trim()) return;
     if (editingNoteId) {
@@ -157,10 +165,20 @@ const IncidentList: React.FC<IncidentListProps> = ({
         const catStyle = getCategoryStyle(incident.category);
         const isClosed =
           incident.status === "resuelto" || incident.status === "rechazado";
-        const canEditIncident =
-          incident.user_id === userId ||
-          userRole === "admin" ||
-          userRole === "supervisor";
+        const isOwner = incident.user_id === userId;
+        const canEditIncident = isOwner || isStaff;
+
+        // --- LÓGICA DE PRIVACIDAD ---
+        let showSensitiveInfo = false;
+        if (viewConfig?.showUser) {
+          if (isOwner || isStaff) {
+            // El dueño y el staff SIEMPRE ven la info si está el interruptor ON
+            showSensitiveInfo = true;
+          } else {
+            // Vecinos ven solo si es modo público
+            showSensitiveInfo = viewConfig.userVisibilityMode === "public";
+          }
+        }
 
         return (
           <div
@@ -343,14 +361,24 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     })}
                   </div>
                 )}
-                {viewConfig?.showUser &&
-                  (userRole === "admin" || userRole === "supervisor") && (
-                    <div className="flex items-center gap-1 text-wood">
-                      <User size={14} />
-                      {incident.user_name || "Anónimo"} (
-                      {incident.user_house || "S/N"})
+                {/* --- RENDERIZADO DEL USUARIO CON DOBLE CHECK --- */}
+                {showSensitiveInfo ? (
+                  <div className="flex items-center gap-1 text-wood">
+                    <User size={14} />
+                    {incident.user_name || "Anónimo"} (
+                    {incident.user_house || "S/N"})
+                  </div>
+                ) : (
+                  // Opcional: Icono de candado si está oculto (solo para dar feedback visual de que hay info oculta)
+                  viewConfig?.showUser && (
+                    <div
+                      className="flex items-center gap-1 text-neutral-300"
+                      title="Información privada"
+                    >
+                      <Shield size={14} /> Vecino Privado
                     </div>
-                  )}
+                  )
+                )}
               </div>
             </div>
 
