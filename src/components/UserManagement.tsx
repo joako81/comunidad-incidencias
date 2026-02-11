@@ -6,7 +6,7 @@ import {
   dbGetAllUsers,
   dbGetPendingUsers,
   dbApproveUser,
-  dbUpdateUser, // Importante para poder borrar/desactivar
+  dbUpdateUser,
 } from "../services/db";
 import {
   Save,
@@ -20,11 +20,11 @@ import {
   Lock,
   AlignLeft,
   CheckCircle2,
-  Search,
   Trash2,
   UserCheck,
   XCircle,
   Shield,
+  Pencil,
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -33,46 +33,37 @@ interface UserManagementProps {
   userRole?: UserRole;
 }
 
-type ViewMode = "list" | "create";
+type ViewMode = "list" | "create" | "edit";
 
 const UserManagement: React.FC<UserManagementProps> = ({
   onUserCreated,
   onCancel,
   userRole,
 }) => {
-  // --- ESTADOS GLOBALES ---
-  const [viewMode, setViewMode] = useState<ViewMode>("list"); // 'list' muestra la tabla, 'create' el formulario
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
 
-  // Datos para el listado
   const [users, setUsers] = useState<User[]>([]);
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
-  // Datos para el formulario de creación
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [role, setRole] = useState<UserRole>("user");
   const [receiveEmails, setReceiveEmails] = useState(true);
   const [fieldsConfig, setFieldsConfig] = useState<UserFieldConfig[]>([]);
 
-  // --- CARGA INICIAL ---
   const loadData = async () => {
     setLoading(true);
-    // 1. Cargar Configuración
     const config = await dbGetAppConfig();
     setFieldsConfig(config.userFields || []);
-
-    // 2. Cargar Usuarios Activos
     const active = await dbGetAllUsers();
     setUsers(active);
-
-    // 3. Cargar Pendientes
     const pending = await dbGetPendingUsers();
     setPendingUsers(pending);
-
     setLoading(false);
   };
 
@@ -80,14 +71,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
     loadData();
   }, []);
 
-  // --- LÓGICA DEL LISTADO (APROBAR/BORRAR) ---
   const handleApprove = async (userId: string) => {
     if (!confirm("¿Aprobar acceso a este vecino?")) return;
     const { error } = await dbApproveUser(userId, true);
     if (error) setMessage({ type: "error", text: error });
     else {
       setMessage({ type: "success", text: "Usuario aprobado correctamente." });
-      loadData(); // Recargar listas
+      loadData();
     }
   };
 
@@ -103,8 +93,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   const handleDelete = async (userId: string) => {
     if (!confirm("¿Estás seguro de desactivar/borrar este usuario?")) return;
-    // Usamos dbUpdateUser para poner status 'rejected' o una función de borrado si existiera
-    // Aquí simulamos borrado lógico pasándolo a rejected
     const { error } = await dbApproveUser(userId, false);
     if (error) setMessage({ type: "error", text: error });
     else {
@@ -113,7 +101,20 @@ const UserManagement: React.FC<UserManagementProps> = ({
     }
   };
 
-  // --- LÓGICA DEL FORMULARIO DE CREACIÓN ---
+  const handleEditClick = (user: User) => {
+    setEditingUserId(user.id);
+    setFormValues({
+      username: user.username,
+      email: user.email,
+      full_name: user.full_name,
+      house_number: user.house_number,
+      ...user.custom_fields,
+    });
+    setRole(user.role);
+    setMessage(null);
+    setViewMode("edit");
+  };
+
   const handleChange = (key: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
     if (message?.type === "error") setMessage(null);
@@ -125,18 +126,29 @@ const UserManagement: React.FC<UserManagementProps> = ({
     setMessage(null);
 
     const username = formValues["username"]?.trim() || "";
-    const password = formValues["password"]?.trim() || "";
     const email = formValues["email"]?.trim() || "";
     const fullName = formValues["full_name"]?.trim() || "";
     const houseNumber = formValues["house_number"]?.trim() || "";
 
-    if (!fullName || !houseNumber || !email || !password || !username) {
+    if (!fullName || !houseNumber || !email || !username) {
       setMessage({
         type: "error",
-        text: "Todos los campos marcados son obligatorios.",
+        text: "Todos los campos visibles son obligatorios.",
       });
       setLoading(false);
       return;
+    }
+
+    if (viewMode === "create") {
+      const password = formValues["password"]?.trim() || "";
+      if (!password) {
+        setMessage({
+          type: "error",
+          text: "La contraseña es obligatoria para crear usuarios.",
+        });
+        setLoading(false);
+        return;
+      }
     }
 
     const custom_fields: Record<string, string> = {};
@@ -154,45 +166,79 @@ const UserManagement: React.FC<UserManagementProps> = ({
       }
     });
 
-    const { error } = await dbCreateUser({
-      email,
-      username,
-      full_name: fullName,
-      house_number: houseNumber,
-      role,
-      receive_emails: receiveEmails,
-      custom_fields,
-      password,
-      status: "active",
-    });
+    let errorResult: string | null = null;
+
+    if (viewMode === "create") {
+      const { error } = await dbCreateUser({
+        email,
+        username,
+        full_name: fullName,
+        house_number: houseNumber,
+        role,
+        receive_emails: receiveEmails,
+        custom_fields,
+        password: formValues["password"],
+        status: "active",
+      });
+      errorResult = error;
+    } else {
+      if (!editingUserId) return;
+      const { error } = await dbUpdateUser(editingUserId, {
+        email,
+        username,
+        full_name: fullName,
+        house_number: houseNumber,
+        role,
+        custom_fields,
+      });
+      errorResult = error;
+    }
 
     setLoading(false);
 
-    if (error) {
-      setMessage({ type: "error", text: error });
+    if (errorResult) {
+      setMessage({ type: "error", text: errorResult });
     } else {
-      setMessage({ type: "success", text: "Usuario creado correctamente." });
+      setMessage({
+        type: "success",
+        text:
+          viewMode === "create"
+            ? "Usuario creado correctamente."
+            : "Usuario actualizado correctamente.",
+      });
       setFormValues({});
       setRole("user");
-      loadData(); // Recargar lista
-      setTimeout(() => setViewMode("list"), 1500); // Volver al listado
+      setEditingUserId(null);
+      loadData();
+      setTimeout(() => setViewMode("list"), 1500);
     }
   };
-
-  // --- RENDERIZADO ---
 
   return (
     <div className="w-full animate-in fade-in duration-300">
       <div className="bg-neutral-800 border-2 border-neutral-700 rounded-lg shadow-xl p-6 max-w-5xl mx-auto relative overflow-hidden min-h-[600px]">
-        {/* Cabecera */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 border-b border-neutral-700 pb-4 gap-4">
           <div>
             <h2 className="text-2xl font-black text-white flex items-center gap-3">
-              <UserPlus className="text-wood" size={28} />
-              Gestión de Usuarios
+              {viewMode === "edit" ? (
+                <>
+                  <Pencil className="text-blue-400" size={28} />
+                  Editando Usuario
+                </>
+              ) : (
+                <>
+                  <UserPlus className="text-wood" size={28} />
+                  Gestión de Usuarios
+                </>
+              )}
             </h2>
             <p className="text-sm text-neutral-400 mt-1">
-              Administra el censo y aprueba nuevas solicitudes.
+              {viewMode === "list" &&
+                "Administra el censo y aprueba nuevas solicitudes."}
+              {viewMode === "create" &&
+                "Rellena los datos para dar de alta un nuevo vecino."}
+              {viewMode === "edit" &&
+                "Modifica los datos del vecino seleccionado."}
             </p>
           </div>
 
@@ -206,7 +252,12 @@ const UserManagement: React.FC<UserManagementProps> = ({
                   Cerrar
                 </button>
                 <button
-                  onClick={() => setViewMode("create")}
+                  onClick={() => {
+                    setFormValues({});
+                    setEditingUserId(null);
+                    setRole("user");
+                    setViewMode("create");
+                  }}
                   className="bg-wood hover:bg-wood-light text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-transform hover:scale-105"
                 >
                   <UserPlus size={18} /> Nuevo Usuario
@@ -214,7 +265,11 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </>
             ) : (
               <button
-                onClick={() => setViewMode("list")}
+                onClick={() => {
+                  setViewMode("list");
+                  setMessage(null);
+                  setEditingUserId(null);
+                }}
                 className="text-neutral-400 hover:text-white flex items-center gap-2 text-sm font-bold bg-neutral-900 px-4 py-2 rounded-lg border border-neutral-700"
               >
                 <ArrowLeft size={16} /> Volver al Listado
@@ -223,7 +278,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
           </div>
         </div>
 
-        {/* Mensajes */}
         {message && (
           <div
             className={`mb-6 p-4 rounded-lg flex items-center gap-3 border ${
@@ -241,10 +295,8 @@ const UserManagement: React.FC<UserManagementProps> = ({
           </div>
         )}
 
-        {/* --- VISTA: LISTADO (TABLA) --- */}
         {viewMode === "list" && (
           <div className="space-y-8 animate-in slide-in-from-left-4 duration-300">
-            {/* 1. Solicitudes Pendientes */}
             {pendingUsers.length > 0 && (
               <div className="bg-orange-900/10 border border-orange-700/50 rounded-xl p-4">
                 <h3 className="text-lg font-bold text-orange-200 mb-3 flex items-center gap-2">
@@ -291,7 +343,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </div>
             )}
 
-            {/* 2. Directorio Activo */}
             <div>
               <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
                 <Shield className="text-wood" /> Directorio de Vecinos (
@@ -347,13 +398,20 @@ const UserManagement: React.FC<UserManagementProps> = ({
                               {u.role}
                             </span>
                           </td>
-                          <td className="p-3 text-right">
+                          <td className="p-3 text-right flex justify-end gap-2">
+                            <button
+                              onClick={() => handleEditClick(u)}
+                              className="p-1.5 bg-neutral-700 hover:bg-blue-600 text-white rounded transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil size={14} />
+                            </button>
                             <button
                               onClick={() => handleDelete(u.id)}
-                              className="text-neutral-500 hover:text-red-400 p-1 transition-colors"
+                              className="p-1.5 bg-neutral-700 hover:bg-red-600 text-white rounded transition-colors"
                               title="Desactivar"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </button>
                           </td>
                         </tr>
@@ -366,14 +424,12 @@ const UserManagement: React.FC<UserManagementProps> = ({
           </div>
         )}
 
-        {/* --- VISTA: CREAR (EL FORMULARIO ARREGLADO) --- */}
-        {viewMode === "create" && (
+        {(viewMode === "create" || viewMode === "edit") && (
           <form
             onSubmit={handleSubmit}
             className="space-y-6 animate-in slide-in-from-right-4 duration-300"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Sección 1: Datos Personales */}
               <div className="md:col-span-1">
                 <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
                   NOMBRE COMPLETO <span className="text-red-500">*</span>
@@ -416,7 +472,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 </div>
               </div>
 
-              {/* Sección 2: Credenciales */}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
                   EMAIL <span className="text-red-500">*</span>
@@ -457,43 +512,60 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
-                  CONTRASEÑA <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock
-                    size={18}
-                    className="absolute left-3 top-3 text-neutral-500"
-                  />
-                  <input
-                    type="password"
-                    required
-                    value={formValues["password"] || ""}
-                    onChange={(e) => handleChange("password", e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-600 rounded-lg p-2.5 pl-10 text-white focus:border-wood outline-none"
-                    placeholder="******"
-                  />
+              {viewMode === "create" && (
+                <div>
+                  <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
+                    CONTRASEÑA <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      size={18}
+                      className="absolute left-3 top-3 text-neutral-500"
+                    />
+                    <input
+                      type="password"
+                      required
+                      value={formValues["password"] || ""}
+                      onChange={(e) => handleChange("password", e.target.value)}
+                      className="w-full bg-neutral-900 border border-neutral-600 rounded-lg p-2.5 pl-10 text-white focus:border-wood outline-none"
+                      placeholder="******"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Sección 3: Rol */}
+              {viewMode === "edit" && (
+                <div>
+                  <label className="block text-xs font-bold text-neutral-500 mb-1.5 ml-1">
+                    CONTRASEÑA
+                  </label>
+                  <div className="p-2.5 border border-neutral-700 rounded-lg bg-neutral-900/50 text-neutral-500 text-sm italic flex items-center gap-2">
+                    <Lock size={14} /> No editable desde aquí por seguridad
+                  </div>
+                </div>
+              )}
+
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
-                  ROL
+                <label className="block text-xs font-bold text-wood mb-1.5 ml-1 uppercase">
+                  ROL Y PERMISOS
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full bg-neutral-900 border border-neutral-600 rounded-lg p-2.5 text-white focus:border-wood outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-600 rounded-lg p-2.5 text-white focus:border-wood outline-none cursor-pointer"
                 >
                   <option value="user">Vecino (Usuario)</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="admin">Administrador</option>
+                  <option value="supervisor">
+                    Supervisor (Gestiona Incidencias)
+                  </option>
+                  <option value="admin">Administrador (Control Total)</option>
                 </select>
+                <p className="text-[11px] text-neutral-500 mt-1 ml-1">
+                  * Cuidado: Dar rol de 'Administrador' permite acceso total al
+                  sistema.
+                </p>
               </div>
 
-              {/* Campos dinámicos */}
               {fieldsConfig
                 .filter(
                   (f) =>
@@ -535,9 +607,14 @@ const UserManagement: React.FC<UserManagementProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-wood hover:bg-wood-light text-white px-8 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-lg disabled:opacity-50"
+                className={`${viewMode === "create" ? "bg-wood hover:bg-wood-light" : "bg-blue-600 hover:bg-blue-500"} text-white px-8 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-lg disabled:opacity-50 transition-colors`}
               >
-                <Save size={18} /> {loading ? "Creando..." : "Guardar Usuario"}
+                <Save size={18} />{" "}
+                {loading
+                  ? "Guardando..."
+                  : viewMode === "create"
+                    ? "Crear Usuario"
+                    : "Guardar Cambios"}
               </button>
             </div>
           </form>
