@@ -65,11 +65,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [filter, setFilter] = useState<"all" | "active" | "resolved">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [categories, setCategories] = useState<string[]>([]);
+
+  // Sort State
   const [sortOptionId, setSortOptionId] = useState<string>("");
   const [availableSortOptions, setAvailableSortOptions] = useState<
     SortOptionConfig[]
   >([]);
-  const [showViewConfig, setShowViewConfig] = useState(false);
+
+  // Admin Config State
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [viewConfig, setViewConfig] = useState<IncidentViewConfig>({
     showLocation: true,
@@ -78,555 +81,302 @@ const Dashboard: React.FC<DashboardProps> = ({
     showPriority: true,
     showCategory: true,
   });
-  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
-  const [pendingMessage, setPendingMessage] = useState<string>("");
-  const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
-  const [selectedIncidents, setSelectedIncidents] = useState<string[]>([]);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showHouseRegistry, setShowHouseRegistry] = useState(false);
-  const [emailMessage, setEmailMessage] = useState("");
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [importing, setImporting] = useState(false);
 
-  const fetchData = async () => {
+  // House Registry Modal
+  const [showHouseRegistry, setShowHouseRegistry] = useState(false);
+
+  // Batch Select State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // Export Modal
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  const loadData = async () => {
     setLoading(true);
-    const appConfig = await dbGetAppConfig();
-    if (user.status === "pending") {
-      if (appConfig)
-        setPendingMessage(
-          appConfig.pendingAccountMessage ||
-            "Tu cuenta está pendiente de aprobación.",
-        );
-      setLoading(false);
-      return;
-    }
-    const { data } = await dbGetIncidents();
-    if (data) setIncidents(data);
-    if (appConfig) {
-      setCategories(appConfig.categories);
-      const activeOptions = appConfig.sortOptions.filter((o) => o.active);
-      setAvailableSortOptions(activeOptions);
-      if (
-        activeOptions.length > 0 &&
-        (!sortOptionId || !activeOptions.find((o) => o.id === sortOptionId))
-      ) {
-        setSortOptionId(activeOptions[0].id);
+
+    // 1. Cargar Configuración (Vista, Categorías, Ordenación)
+    const config = await dbGetAppConfig();
+    if (config.categories) setCategories(config.categories);
+
+    // Cargar opciones de ordenación ACTIVAS
+    if (config.sortOptions) {
+      const activeSorts = config.sortOptions.filter((o) => o.active);
+      setAvailableSortOptions(activeSorts);
+      // Seleccionar la primera por defecto si no hay ninguna
+      if (activeSorts.length > 0 && !sortOptionId) {
+        setSortOptionId(activeSorts[0].id);
       }
     }
-    if (user.role === "admin" || user.role === "supervisor") {
-      const pending = await dbGetPendingUsers();
-      setPendingUsers(pending);
-      setSelectedPendingIds((prev) =>
-        prev.filter((id) => pending.some((u) => u.id === id)),
-      );
+
+    // Cargar configuración de vista
+    if (config.viewConfig) {
+      setViewConfig(config.viewConfig);
+    }
+
+    // 2. Cargar Incidencias
+    const res = await dbGetIncidents();
+    if (res.data) {
+      setIncidents(res.data);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchData();
-  }, [refreshTrigger, user.role, user.status]);
+    loadData();
+  }, [refreshTrigger]);
 
-  const handleStatusChange = async (id: string, status: Incident["status"]) => {
-    const { data } = await dbUpdateIncidentStatus(id, status);
-    if (data) fetchData();
+  const handleStatusChange = async (
+    id: string,
+    newStatus: Incident["status"],
+  ) => {
+    await dbUpdateIncidentStatus(id, newStatus);
+    loadData();
   };
 
   const handleDelete = async (id: string) => {
-    const { data } = await dbDeleteIncident(id);
-    if (data) fetchData();
+    await dbDeleteIncident(id);
+    loadData();
+    setSelectedIds((prev) => prev.filter((pid) => pid !== id));
   };
 
-  const handleSelectIncident = (id: string, selected: boolean) => {
-    if (selected) setSelectedIncidents((prev) => [...prev, id]);
-    else setSelectedIncidents((prev) => prev.filter((i) => i !== id));
+  // --- SORTING LOGIC ---
+  const getSortedIncidents = (list: Incident[]) => {
+    if (!sortOptionId) return list;
+    const option = availableSortOptions.find((o) => o.id === sortOptionId);
+    if (!option) return list;
+
+    return [...list].sort((a, b) => {
+      const valA = a[option.field];
+      const valB = b[option.field];
+
+      if (!valA) return 1;
+      if (!valB) return -1;
+
+      if (valA < valB) return option.direction === "asc" ? -1 : 1;
+      if (valA > valB) return option.direction === "asc" ? 1 : -1;
+      return 0;
+    });
   };
 
-  const handleSendEmail = async () => {
-    if (!emailMessage.trim()) return;
-    setSendingEmail(true);
-    await dbSendBatchEmail(selectedIncidents, emailMessage);
-    setSendingEmail(false);
-    setShowEmailModal(false);
-    setSelectedIncidents([]);
-    setEmailMessage("");
-    alert("Informe enviado por correo a los vecinos suscritos.");
+  // --- FILTERING LOGIC ---
+  const filteredIncidents = getSortedIncidents(
+    incidents.filter((inc) => {
+      const statusMatch =
+        filter === "all"
+          ? true
+          : filter === "active"
+            ? inc.status === "pendiente" || inc.status === "en_proceso"
+            : inc.status === "resuelto" || inc.status === "rechazado";
+      const catMatch =
+        categoryFilter === "all" ? true : inc.category === categoryFilter;
+      return statusMatch && catMatch;
+    }),
+  );
+
+  // --- BATCH ACTIONS ---
+  const toggleSelection = (id: string, selected: boolean) => {
+    if (selected) setSelectedIds((prev) => [...prev, id]);
+    else setSelectedIds((prev) => prev.filter((pid) => pid !== id));
   };
 
-  const handleApproveUser = async (userId: string) => {
-    await dbApproveUser(userId, true);
-    fetchData();
-  };
-
-  const handleRejectUser = async (userId: string) => {
-    if (confirm("¿Estás seguro de rechazar y eliminar esta solicitud?")) {
-      await dbApproveUser(userId, false);
-      fetchData();
-    }
-  };
-
-  const togglePendingSelection = (userId: string) => {
-    setSelectedPendingIds((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId],
-    );
-  };
-
-  const toggleAllPending = () => {
-    if (selectedPendingIds.length === pendingUsers.length)
-      setSelectedPendingIds([]);
-    else setSelectedPendingIds(pendingUsers.map((u) => u.id));
-  };
-
-  const handleBulkApprove = async () => {
+  const handleBatchDelete = async () => {
     if (
-      !confirm(
-        `¿Aprobar acceso a los ${selectedPendingIds.length} usuarios seleccionados?`,
-      )
-    )
-      return;
-    for (const id of selectedPendingIds) {
-      await dbApproveUser(id, true);
+      confirm(`¿Seguro que quieres borrar ${selectedIds.length} incidencias?`)
+    ) {
+      for (const id of selectedIds) {
+        await dbDeleteIncident(id);
+      }
+      setSelectedIds([]);
+      setIsSelectionMode(false);
+      loadData();
     }
-    setSelectedPendingIds([]);
-    fetchData();
-  };
-
-  const handleBulkReject = async () => {
-    if (
-      !confirm(
-        `¿Rechazar y eliminar las ${selectedPendingIds.length} solicitudes seleccionadas?`,
-      )
-    )
-      return;
-    for (const id of selectedPendingIds) {
-      await dbApproveUser(id, false);
-    }
-    setSelectedPendingIds([]);
-    fetchData();
   };
 
   const handleExport = (format: "pdf" | "excel") => {
-    setShowExportModal(false);
-    const formatName = format === "pdf" ? "PDF" : "Excel";
     alert(
-      `Descargando listado en ${formatName} con ${filteredIncidents.length} incidencias... (Simulación)`,
+      `Exportando a ${format.toUpperCase()}... \n(Funcionalidad simulada: Se descargaría el archivo filtrado)`,
     );
+    setShowExportModal(false);
   };
 
-  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
-      const lines = text.split(/\r\n|\n/);
-      const startIndex =
-        lines[0].toLowerCase().includes("título") ||
-        lines[0].toLowerCase().includes("title")
-          ? 1
-          : 0;
-      for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        const cols = line.split(",");
-        if (cols.length < 2) continue;
-        const title = cols[0]?.trim();
-        const description = cols[1]?.trim() || "Sin descripción";
-        const category = cols[2]?.trim() || "General";
-        const priorityRaw = cols[3]?.trim().toLowerCase();
-        const location = cols[4]?.trim() || "Sin ubicación";
-        let priority: any = "media";
-        if (["baja", "media", "alta", "urgente"].includes(priorityRaw))
-          priority = priorityRaw;
-        if (title) {
-          await dbCreateIncident({
-            title,
-            description,
-            category,
-            priority,
-            location,
-            status: "pendiente",
-            user_id: user.id,
-            attachments: [],
-          });
-        }
-      }
-      setImporting(false);
-      setShowImportModal(false);
-      alert(`Importación completada.`);
-      fetchData();
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
-  if (user.status === "pending") {
+  if (loading)
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in duration-500">
-        <div className="bg-[#FAF7F2] border-4 border-wood rounded-full p-8 mb-6 shadow-xl">
-          <Lock size={64} className="text-wood" />
-        </div>
-        <h2 className="text-3xl font-black text-neutral-900 dark:text-neutral-100 mb-4">
-          Acceso Restringido
-        </h2>
-        <div className="bg-neutral-800 border-l-4 border-wood p-6 rounded shadow-lg max-w-lg">
-          <p className="text-lg text-white font-medium leading-relaxed">
-            {pendingMessage}
-          </p>
-        </div>
-      </div>
+      <div className="p-8 text-center text-neutral-500">Cargando datos...</div>
     );
-  }
-
-  let filteredIncidents = incidents.filter((inc) => {
-    const statusMatch =
-      filter === "all"
-        ? true
-        : filter === "active"
-          ? inc.status === "pendiente" || inc.status === "en_proceso"
-          : inc.status === "resuelto" || inc.status === "rechazado";
-    const categoryMatch =
-      categoryFilter === "all" ? true : inc.category === categoryFilter;
-    return statusMatch && categoryMatch;
-  });
-
-  const currentSortConfig = availableSortOptions.find(
-    (o) => o.id === sortOptionId,
-  );
-  if (currentSortConfig) {
-    filteredIncidents.sort((a, b) => {
-      const field = currentSortConfig.field;
-      const valA = a[field] || "";
-      const valB = b[field] || "";
-      let comparison = 0;
-      if (field === "priority") {
-        const pWeight = { urgente: 4, alta: 3, media: 2, baja: 1 };
-        comparison =
-          (pWeight[valA as keyof typeof pWeight] || 0) -
-          (pWeight[valB as keyof typeof pWeight] || 0);
-      } else if (field === "created_at" || field === "updated_at") {
-        comparison =
-          new Date(valA as string).getTime() -
-          new Date(valB as string).getTime();
-      } else {
-        comparison = String(valA).localeCompare(String(valB));
-      }
-      return currentSortConfig.direction === "asc" ? comparison : -comparison;
-    });
-  }
-
-  const canManageUsers = user.role === "admin" || user.role === "supervisor";
-  const isAdmin = user.role === "admin";
-
-  if (showUserManagement && canManageUsers) {
-    return (
-      <div>
-        <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-200 mb-6">
-          Gestión de Vecinos
-        </h1>
-        <UserManagement
-          userRole={user.role}
-          onUserCreated={() => {
-            fetchData();
-            onCloseUserManagement();
-          }}
-          onCancel={onCloseUserManagement}
-        />
-      </div>
-    );
-  }
 
   return (
-    <div className="relative">
-      {canManageUsers && pendingUsers.length > 0 && (
-        <div className="mb-8 p-6 bg-wood/10 border-2 border-wood rounded-lg animate-in fade-in slide-in-from-top-4 shadow-xl">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
-            <div className="flex items-center gap-4">
-              <h2 className="text-xl font-bold text-wood flex items-center gap-2">
-                <UserPlus size={24} /> Solicitudes ({pendingUsers.length})
-              </h2>
-              <button
-                onClick={toggleAllPending}
-                className="flex items-center gap-2 text-sm font-bold text-neutral-600 hover:text-wood transition-colors bg-white/50 px-3 py-1 rounded border border-neutral-300"
-              >
-                {selectedPendingIds.length === pendingUsers.length &&
-                pendingUsers.length > 0 ? (
-                  <CheckSquare size={18} className="text-wood" />
-                ) : (
-                  <Square size={18} />
-                )}{" "}
-                Seleccionar Todo
-              </button>
-            </div>
-            {selectedPendingIds.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleBulkApprove}
-                  className="bg-green-700 hover:bg-green-600 text-white px-4 py-1.5 rounded font-bold text-sm flex items-center gap-2 shadow-sm"
-                >
-                  <Check size={16} /> Aceptar ({selectedPendingIds.length})
-                </button>
-                <button
-                  onClick={handleBulkReject}
-                  className="bg-red-700 hover:bg-red-600 text-white px-4 py-1.5 rounded font-bold text-sm flex items-center gap-2 shadow-sm"
-                >
-                  <Trash2 size={16} /> Rechazar ({selectedPendingIds.length})
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {pendingUsers.map((pu) => (
-              <div
-                key={pu.id}
-                className={`bg-neutral-800 p-5 rounded-lg border-2 shadow-lg flex flex-col transition-all cursor-pointer relative ${selectedPendingIds.includes(pu.id) ? "border-wood ring-1 ring-wood" : "border-neutral-600 hover:border-neutral-500"}`}
-                onClick={(e) => {
-                  if (!(e.target as HTMLElement).closest("button"))
-                    togglePendingSelection(pu.id);
-                }}
-              >
-                <div className="absolute top-3 right-3 text-wood">
-                  {selectedPendingIds.includes(pu.id) ? (
-                    <CheckSquare size={24} className="fill-wood/20" />
-                  ) : (
-                    <Square size={24} className="text-neutral-600" />
-                  )}
-                </div>
-                <div className="mb-4 pr-8">
-                  <h3 className="font-bold text-white text-lg">
-                    {pu.full_name}
-                  </h3>
-                  <p className="text-neutral-400 text-sm mb-2">{pu.email}</p>
-                  <div className="grid grid-cols-2 gap-2 mt-3 bg-neutral-900/50 p-3 rounded">
-                    <div>
-                      <span className="text-[10px] text-neutral-500 uppercase block">
-                        Usuario
-                      </span>
-                      <span className="text-sm font-bold text-white">
-                        {pu.username}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-neutral-500 uppercase block">
-                        Propiedad
-                      </span>
-                      <span className="text-wood font-bold text-sm">
-                        {pu.house_number}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-auto">
-                  <button
-                    onClick={() => handleApproveUser(pu.id)}
-                    className="flex-1 bg-neutral-700 hover:bg-green-700 text-white py-2 rounded font-bold text-xs flex items-center justify-center gap-2 transition-colors border border-transparent hover:border-green-500"
-                  >
-                    <Check size={14} /> Aceptar
-                  </button>
-                  <button
-                    onClick={() => handleRejectUser(pu.id)}
-                    className="flex-1 bg-neutral-700 hover:bg-red-900/80 text-white py-2 rounded font-bold text-xs flex items-center justify-center gap-2 transition-colors border border-transparent hover:border-red-500"
-                  >
-                    <Trash2 size={14} /> Rechazar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* HEADER & CONTROLS */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-black text-neutral-900 dark:text-neutral-100 tracking-tight uppercase">
+            Incidencias
+          </h1>
+          <p className="text-neutral-500 dark:text-neutral-400 font-medium">
+            Gestión comunitaria inteligente
+          </p>
         </div>
-      )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-200">
-          Tablero de Incidencias
-        </h1>
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2 bg-neutral-800 p-1 rounded-lg border border-neutral-700 shadow-sm">
-            {["all", "active", "resolved"].map((f) => (
+        <div className="flex flex-wrap gap-2">
+          {/* House Registry Button */}
+          <button
+            onClick={() => setShowHouseRegistry(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors font-bold text-sm border border-neutral-300 dark:border-neutral-600"
+            title="Censo de Casas"
+          >
+            <Home size={18} /> <span className="hidden sm:inline">Censo</span>
+          </button>
+
+          {user.role === "admin" && (
+            <>
               <button
-                key={f}
-                onClick={() => setFilter(f as any)}
-                className={`px-3 py-1.5 rounded font-bold text-sm transition-colors ${filter === f ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-neutral-200"}`}
+                onClick={() => setIsSelectionMode(!isSelectionMode)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-bold text-sm border ${isSelectionMode ? "bg-wood text-white border-wood" : "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-600"}`}
               >
-                {f === "all"
-                  ? "Todas"
-                  : f === "active"
-                    ? "Activas"
-                    : "Resueltas"}
+                {isSelectionMode ? (
+                  <>
+                    <X size={18} /> Cancelar
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare size={18} /> Selección
+                  </>
+                )}
               </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 bg-neutral-200 px-3 py-1.5 rounded-lg border border-neutral-400 shadow-sm">
-            <Filter size={16} className="text-neutral-800" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-transparent text-sm text-neutral-900 font-bold focus:outline-none cursor-pointer w-32 md:w-auto"
+
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors font-bold text-sm border border-neutral-300 dark:border-neutral-600"
+              >
+                <FileDown size={18} />{" "}
+                <span className="hidden sm:inline">Exportar</span>
+              </button>
+
+              <button
+                onClick={() => setShowAdminSettings(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 transition-colors font-bold text-sm shadow-lg"
+              >
+                <Settings size={18} />{" "}
+                <span className="hidden sm:inline">Configuración</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* FILTERS & SORTING BAR */}
+      <div className="bg-white dark:bg-card p-4 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-800 mb-6 flex flex-col md:flex-row gap-4 justify-between items-center">
+        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
+          <Filter size={18} className="text-wood shrink-0" />
+          <div className="flex bg-neutral-100 dark:bg-neutral-800 rounded-lg p-1">
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${filter === "all" ? "bg-white dark:bg-neutral-700 text-wood shadow-sm" : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"}`}
             >
-              <option value="all">Todas las Categorías</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
+              Todas
+            </button>
+            <button
+              onClick={() => setFilter("active")}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${filter === "active" ? "bg-white dark:bg-neutral-700 text-wood shadow-sm" : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"}`}
+            >
+              Activas
+            </button>
+            <button
+              onClick={() => setFilter("resolved")}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${filter === "resolved" ? "bg-white dark:bg-neutral-700 text-wood shadow-sm" : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"}`}
+            >
+              Resueltas
+            </button>
+          </div>
+
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="bg-neutral-100 dark:bg-neutral-800 border-none text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300 rounded-lg py-2 pl-3 pr-8 focus:ring-2 focus:ring-wood/20 cursor-pointer"
+          >
+            <option value="all">Todas las Categorías</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* SORTING DROPDOWN */}
+        {availableSortOptions.length > 0 && (
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <ArrowUpDown size={16} className="text-neutral-400" />
+            <select
+              value={sortOptionId}
+              onChange={(e) => setSortOptionId(e.target.value)}
+              className="w-full md:w-auto bg-neutral-100 dark:bg-neutral-800 border-none text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300 rounded-lg py-2 pl-3 pr-8 focus:ring-2 focus:ring-wood/20 cursor-pointer"
+            >
+              {availableSortOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
                 </option>
               ))}
             </select>
           </div>
-          <div className="flex gap-2">
-            {isAdmin && (
-              <button
-                onClick={() => setShowAdminSettings(true)}
-                className="p-2 rounded border border-neutral-600 bg-neutral-800 text-neutral-400 hover:text-white"
-                title="Configuración"
-              >
-                <Settings size={18} />
-              </button>
-            )}
-            <button
-              onClick={() => setShowHouseRegistry(true)}
-              className="p-2 rounded border border-neutral-600 bg-neutral-800 text-neutral-400 hover:text-white"
-              title="Censo"
-            >
-              <Home size={18} />
-            </button>
-            <button
-              onClick={() => setShowViewConfig(!showViewConfig)}
-              className={`p-2 rounded border border-neutral-600 ${showViewConfig ? "bg-wood text-white" : "bg-neutral-800 text-neutral-400"}`}
-              title="Vista"
-            >
-              <Eye size={18} />
-            </button>
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="p-2 rounded border border-neutral-600 bg-neutral-800 text-neutral-400 hover:text-white"
-              title="Importar"
-            >
-              <FileUp size={18} />
-            </button>
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-2 bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded font-bold text-sm shadow-sm"
-              title="Exportar"
-            >
-              <FileDown size={18} />{" "}
-              <span className="hidden md:inline">Exportar</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-[#E8DCCA] dark:bg-[#202124] border-2 border-[#8B5A2B]/30 dark:border-[#3c4043] rounded-xl p-6 min-h-[500px] shadow-inner">
-        {loading ? (
-          <div className="flex items-center justify-center h-64 text-wood-hover font-bold text-lg">
-            <RefreshCcw className="animate-spin mr-2" /> Cargando datos...
-          </div>
-        ) : (
-          <IncidentList
-            incidents={filteredIncidents}
-            userRole={user.role}
-            userId={user.id}
-            userName={user.full_name || user.email}
-            onStatusChange={handleStatusChange}
-            onDelete={handleDelete}
-            onEdit={onEditIncident}
-            onRefresh={fetchData}
-            selectable={canManageUsers}
-            selectedIds={selectedIncidents}
-            onToggleSelection={handleSelectIncident}
-            viewConfig={viewConfig}
-          />
         )}
       </div>
 
+      {/* SELECTION BAR */}
+      {isSelectionMode && selectedIds.length > 0 && (
+        <div className="bg-wood/10 border border-wood/20 p-3 rounded-xl mb-6 flex justify-between items-center animate-in fade-in slide-in-from-top-2">
+          <span className="text-wood font-bold text-sm px-2">
+            {selectedIds.length} incidencias seleccionadas
+          </span>
+          <button
+            onClick={handleBatchDelete}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors shadow-sm"
+          >
+            <Trash2 size={14} /> Eliminar Marcadas
+          </button>
+        </div>
+      )}
+
+      {/* INCIDENT LIST */}
+      <IncidentList
+        incidents={filteredIncidents}
+        userRole={user.role}
+        userId={user.id}
+        userName={user.username}
+        onStatusChange={handleStatusChange}
+        onDelete={handleDelete}
+        onEdit={onEditIncident}
+        onRefresh={loadData}
+        selectable={isSelectionMode}
+        selectedIds={selectedIds}
+        onToggleSelection={toggleSelection}
+        viewConfig={viewConfig}
+      />
+
+      {/* MODALES */}
       {showAdminSettings && (
         <AdminSettings
           onClose={() => setShowAdminSettings(false)}
-          onUpdate={fetchData}
+          onUpdate={loadData}
         />
       )}
+
+      {showUserManagement && (
+        <UserManagement
+          onCancel={onCloseUserManagement}
+          onUserCreated={() => {}}
+          userRole={user.role}
+        />
+      )}
+
       {showHouseRegistry && (
         <HouseRegistry onClose={() => setShowHouseRegistry(false)} />
       )}
-      {showEmailModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-neutral-800 border-2 border-neutral-700 w-full max-w-lg rounded-lg shadow-2xl p-6 relative">
-            <button
-              onClick={() => setShowEmailModal(false)}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-white"
-            >
-              <X size={20} />
-            </button>
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Mail className="text-wood" /> Enviar Informe
-            </h2>
-            <textarea
-              value={emailMessage}
-              onChange={(e) => setEmailMessage(e.target.value)}
-              rows={5}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white mb-4 focus:border-wood focus:outline-none"
-              placeholder="Mensaje..."
-            />
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowEmailModal(false)}
-                className="px-4 py-2 text-neutral-400 font-medium hover:text-white"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSendEmail}
-                disabled={sendingEmail}
-                className="bg-wood hover:bg-wood-light text-white px-6 py-2 rounded font-bold flex items-center gap-2 disabled:opacity-50"
-              >
-                <Send size={18} />{" "}
-                {sendingEmail ? "Enviando..." : "Enviar Informe"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-[#FAF7F2] dark:bg-[#303134] border-2 border-wood w-full max-w-lg rounded-lg shadow-2xl p-6 relative">
-            <button
-              onClick={() => setShowImportModal(false)}
-              className="absolute top-4 right-4 text-neutral-400"
-            >
-              <X size={20} />
-            </button>
-            <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-              <FileUp className="text-wood" /> Importar CSV
-            </h2>
-            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-neutral-300 rounded-lg cursor-pointer hover:bg-white transition-colors">
-              {importing ? (
-                <div className="text-wood animate-pulse font-bold">
-                  Procesando...
-                </div>
-              ) : (
-                <>
-                  <Upload size={32} className="text-neutral-400 mb-2" />
-                  <span className="font-bold text-sm">Seleccionar CSV</span>
-                </>
-              )}
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCSVUpload}
-                className="hidden"
-                disabled={importing}
-              />
-            </label>
-          </div>
-        </div>
-      )}
+
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-neutral-800 border-2 border-neutral-700 w-full max-w-sm rounded-lg shadow-2xl p-6 relative card">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-neutral-900 border border-neutral-700 p-6 rounded-2xl shadow-2xl w-full max-w-sm relative">
             <button
               onClick={() => setShowExportModal(false)}
               className="absolute top-4 right-4 text-neutral-400 hover:text-white"
