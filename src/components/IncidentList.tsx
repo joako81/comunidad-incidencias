@@ -103,65 +103,59 @@ const IncidentList: React.FC<IncidentListProps> = ({
   selectable = false,
   selectedIds = [],
   onToggleSelection,
-  viewConfig = {
-    showLocation: true,
-    showDate: true,
-    showUser: true,
-    showPriority: true,
-    showCategory: true,
-  },
+  viewConfig,
 }) => {
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [newNote, setNewNote] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-
   const [galleryItems, setGalleryItems] = useState<Attachment[] | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
-  const handleAddNote = async (incidentId: string) => {
-    if (!newNote.trim()) return;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!galleryItems) return;
+      if (e.key === "Escape") setGalleryItems(null);
+      if (e.key === "ArrowRight") handleNext();
+      if (e.key === "ArrowLeft") handlePrev();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [galleryItems, currentIndex]);
 
-    if (editingNoteId) {
-      await dbUpdateNote(editingNoteId, newNote);
-      setEditingNoteId(null);
-    } else {
-      await dbAddNote(incidentId, newNote, userName);
-    }
-
-    setNewNote("");
-    onRefresh();
-  };
-
-  const handleEditNoteClick = (
-    incidentId: string,
-    noteId: string,
-    content: string,
-  ) => {
-    setExpandedNotes(incidentId);
-    setEditingNoteId(noteId);
-    setNewNote(content);
-  };
-
-  const handleDeleteNote = async (noteId: string) => {
-    if (confirm("¿Seguro que quieres eliminar esta nota?")) {
-      await dbDeleteNote(noteId);
-      onRefresh();
-    }
-  };
-
-  const handleNext = () => {
+  const handleNext = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!galleryItems) return;
     setIsVideoLoading(true);
     setCurrentIndex((prev) => (prev + 1) % galleryItems.length);
   };
 
-  const handlePrev = () => {
+  const handlePrev = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!galleryItems) return;
     setIsVideoLoading(true);
     setCurrentIndex(
       (prev) => (prev - 1 + galleryItems.length) % galleryItems.length,
     );
+  };
+
+  const handleAddNote = async (incidentId: string) => {
+    if (!newNote.trim()) return;
+    if (editingNoteId) {
+      await dbUpdateNote(incidentId, editingNoteId, newNote);
+      setEditingNoteId(null);
+    } else {
+      await dbAddNote(incidentId, newNote, userName);
+    }
+    setNewNote("");
+    onRefresh();
+  };
+
+  const handleDeleteNote = async (incidentId: string, noteId: string) => {
+    if (confirm("¿Eliminar esta nota?")) {
+      await dbDeleteNote(incidentId, noteId);
+      onRefresh();
+    }
   };
 
   return (
@@ -170,7 +164,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
         const catStyle = getCategoryStyle(incident.category);
         const isClosed =
           incident.status === "resuelto" || incident.status === "rechazado";
-        const canEdit =
+        const canEditIncident =
           incident.user_id === userId ||
           userRole === "admin" ||
           userRole === "supervisor";
@@ -207,7 +201,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {catStyle.icon} {incident.category || "General"}
                   </span>
                 )}
-                {canEdit && (
+                {canEditIncident && (
                   <button
                     onClick={() => onEdit(incident)}
                     className="p-2 text-wood hover:bg-wood/10 rounded-full transition-all ml-auto"
@@ -217,7 +211,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 )}
               </div>
 
-              <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
+              <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 leading-tight uppercase tracking-tight">
                 {incident.title}
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4">
@@ -232,6 +226,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       onClick={() => {
                         setGalleryItems(incident.attachments || []);
                         setCurrentIndex(idx);
+                        setIsVideoLoading(true);
                       }}
                       className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm cursor-pointer group"
                     >
@@ -244,6 +239,10 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       ) : (
                         <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900 group-hover:bg-neutral-200 transition-colors">
                           <PlayCircle size={32} className="text-wood" />
+                          <Film
+                            size={12}
+                            className="absolute bottom-1 right-1 text-white/50"
+                          />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
@@ -257,61 +256,69 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 </div>
               )}
 
-              {/* HISTORIAL DE NOTAS CON OPCIONES PARA ADMIN */}
               {incident.notes && incident.notes.length > 0 && (
-                <div className="mt-2 mb-4">
+                <div className="mt-2 mb-4 bg-neutral-50/50 dark:bg-neutral-900/20 p-3 rounded-xl border border-neutral-100 dark:border-neutral-800">
                   <span className="text-[10px] font-black uppercase text-neutral-400 mb-2 block tracking-widest">
                     Historial de Notas
                   </span>
-                  <div className="max-h-32 overflow-y-auto space-y-3 pr-2 custom-scrollbar border-l-2 border-neutral-100 dark:border-neutral-800 pl-4">
-                    {incident.notes.map((note) => (
-                      <div key={note.id} className="text-[11px] group">
-                        <div className="flex justify-between items-center mb-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-wood uppercase">
-                              {note.author_name}
-                            </span>
-                            <span className="text-[9px] text-neutral-400">
-                              {format(
-                                new Date(note.created_at),
-                                "dd/MM/yyyy HH:mm",
-                                { locale: es },
-                              )}
-                            </span>
-                          </div>
-                          {userRole === "admin" && (
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() =>
-                                  handleEditNoteClick(
-                                    incident.id,
-                                    note.id,
-                                    note.content,
-                                  )
-                                }
-                                className="text-blue-500 hover:text-blue-700"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteNote(note.id)}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                  <div className="max-h-40 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    {incident.notes.map((note) => {
+                      const canManageNote =
+                        userRole === "admin" ||
+                        userRole === "supervisor" ||
+                        note.author_name === userName;
+                      return (
+                        <div
+                          key={note.id}
+                          className="text-[11px] group relative"
+                        >
+                          <div className="flex justify-between items-center mb-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-wood uppercase">
+                                {note.author_name}
+                              </span>
+                              <span className="text-[9px] text-neutral-400">
+                                {format(
+                                  new Date(note.created_at),
+                                  "dd/MM/yyyy HH:mm",
+                                  { locale: es },
+                                )}
+                              </span>
                             </div>
-                          )}
+                            {canManageNote && (
+                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    setExpandedNotes(incident.id);
+                                    setEditingNoteId(note.id);
+                                    setNewNote(note.content);
+                                  }}
+                                  className="text-blue-500 hover:text-blue-700"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDeleteNote(incident.id, note.id)
+                                  }
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-neutral-700 dark:text-neutral-300 font-medium leading-relaxed">
+                            {note.content}
+                          </p>
                         </div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium leading-relaxed">
-                          {note.content}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 font-black uppercase tracking-widest mt-auto pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-auto pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig?.showLocation && (
                   <div className="flex items-center gap-1">
                     <MapPin size={14} />
@@ -352,46 +359,39 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <MessageSquare size={14} />{" "}
-                    {editingNoteId ? "Editando Nota" : "Añadir Nota"}
+                    {editingNoteId ? "Editando..." : "Nueva Nota"}
                   </span>
                   <span className="bg-wood text-white px-2 py-0.5 rounded-full text-[9px]">
                     {incident.notes?.length || 0}
                   </span>
                 </button>
                 {expandedNotes === incident.id && (
-                  <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 animate-in slide-in-from-top-2">
-                    <div className="flex flex-col gap-2">
-                      <textarea
-                        value={newNote}
-                        onChange={(e) => setNewNote(e.target.value)}
-                        className="w-full rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 min-h-[60px] resize-none"
-                        placeholder="Escribir nota..."
-                      />
-                      <div className="flex gap-1">
-                        {editingNoteId && (
-                          <button
-                            onClick={() => {
-                              setEditingNoteId(null);
-                              setNewNote("");
-                            }}
-                            className="bg-neutral-200 text-neutral-600 flex-grow py-2 rounded-lg text-[10px] font-black uppercase"
-                          >
-                            Cancelar
-                          </button>
-                        )}
+                  <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 dark:border-neutral-700 animate-in slide-in-from-top-2">
+                    <textarea
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      className="w-full rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 min-h-[80px] mb-2"
+                      placeholder="Escribir nota..."
+                    />
+                    <div className="flex gap-1">
+                      {editingNoteId && (
                         <button
-                          onClick={() => handleAddNote(incident.id)}
-                          className="bg-wood text-white p-2 flex-grow rounded-lg font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                          onClick={() => {
+                            setEditingNoteId(null);
+                            setNewNote("");
+                          }}
+                          className="bg-neutral-200 text-neutral-600 px-2 py-2 rounded-lg text-[9px] font-black uppercase flex-1"
                         >
-                          {editingNoteId ? (
-                            "Actualizar"
-                          ) : (
-                            <>
-                              <Send size={14} /> Enviar
-                            </>
-                          )}
+                          X
                         </button>
-                      </div>
+                      )}
+                      <button
+                        onClick={() => handleAddNote(incident.id)}
+                        className="bg-wood text-white p-2 rounded-lg flex-grow font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                      >
+                        <Send size={14} />{" "}
+                        {editingNoteId ? "Guardar" : "Enviar"}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -407,7 +407,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase shadow-md"
+                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase"
                           >
                             Procesar
                           </button>
@@ -417,7 +417,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase shadow-md",
+                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -430,7 +430,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         onClick={() =>
                           onStatusChange(incident.id, "en_proceso")
                         }
-                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase transition-all"
+                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase tracking-widest"
                       >
                         <RefreshCw size={14} /> Reabrir
                       </button>
@@ -438,7 +438,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar incidencia?"))
+                          if (confirm("¿Borrar incidencia definitivamente?"))
                             onDelete(incident.id);
                         }}
                         className="text-[9px] text-red-500 font-black uppercase mt-1 transition-colors hover:text-red-700 flex items-center justify-center gap-1"
@@ -454,30 +454,27 @@ const IncidentList: React.FC<IncidentListProps> = ({
         );
       })}
 
-      {/* El carrusel se mantiene idéntico al anterior para no romper nada */}
       {galleryItems && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
           <div
-            className="absolute inset-0 bg-black/95 backdrop-blur-2xl"
+            className="absolute inset-0 bg-black/95"
             onClick={() => setGalleryItems(null)}
           />
           <div className="absolute top-6 left-0 right-0 px-6 flex justify-between items-center z-[110]">
-            <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-xl">
-              <span className="text-white font-black text-[10px] tracking-widest">
-                {currentIndex + 1} / {galleryItems.length}
-              </span>
+            <div className="bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-xl text-white font-black text-[10px] tracking-widest">
+              {currentIndex + 1} / {galleryItems.length}
             </div>
             <div className="flex gap-3">
               <a
                 href={galleryItems[currentIndex].url}
                 download
-                className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
+                className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/10"
               >
                 <Download size={20} />
               </a>
               <button
                 onClick={() => setGalleryItems(null)}
-                className="p-3 bg-white/10 hover:bg-red-500 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
+                className="p-3 bg-white/10 hover:bg-red-500 text-white rounded-full transition-all border border-white/10"
               >
                 <X size={20} />
               </button>
@@ -487,7 +484,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
             {galleryItems.length > 1 && (
               <button
                 onClick={handlePrev}
-                className="absolute left-0 md:-left-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm"
+                className="absolute left-0 md:-left-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full"
               >
                 <ChevronLeft size={48} />
               </button>
@@ -517,19 +514,59 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     playsInline
                     onCanPlay={() => setIsVideoLoading(false)}
                     className="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-white/10 bg-black"
-                  />
+                  >
+                    <source
+                      src={galleryItems[currentIndex].url}
+                      type="video/mp4"
+                    />
+                    <source
+                      src={galleryItems[currentIndex].url}
+                      type="video/quicktime"
+                    />
+                  </video>
                 </div>
               )}
             </div>
             {galleryItems.length > 1 && (
               <button
                 onClick={handleNext}
-                className="absolute right-0 md:-right-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm"
+                className="absolute right-0 md:-right-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full"
               >
                 <ChevronRight size={48} />
               </button>
             )}
           </div>
+          {galleryItems.length > 1 && (
+            <div className="absolute bottom-10 flex gap-2 overflow-x-auto p-2 max-w-md scrollbar-hide z-[110]">
+              {galleryItems.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentIndex(i);
+                    setIsVideoLoading(true);
+                  }}
+                  className={clsx(
+                    "w-12 h-12 rounded-lg border-2 overflow-hidden transition-all shrink-0",
+                    currentIndex === i
+                      ? "border-wood scale-110 shadow-lg"
+                      : "border-transparent opacity-40 hover:opacity-100",
+                  )}
+                >
+                  {item.type === "image" ? (
+                    <img
+                      src={item.url}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="bg-neutral-700 w-full h-full flex items-center justify-center">
+                      <PlayCircle size={16} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
