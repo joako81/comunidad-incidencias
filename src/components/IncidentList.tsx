@@ -18,7 +18,7 @@ import {
   RefreshCw,
   Pencil,
   X,
-  Maximize2, // <--- REPARADO: Importación añadida para evitar el ReferenceError
+  Maximize2,
   Download,
   Loader2,
   ChevronLeft,
@@ -114,28 +114,9 @@ const IncidentList: React.FC<IncidentListProps> = ({
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [newNote, setNewNote] = useState("");
 
-  // ESTADOS DEL CARRUSEL
   const [galleryItems, setGalleryItems] = useState<Attachment[] | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
-
-  // Cerrar modal con ESC y navegación por flechas
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!galleryItems) return;
-      if (e.key === "Escape") setGalleryItems(null);
-      if (e.key === "ArrowRight") handleNext();
-      if (e.key === "ArrowLeft") handlePrev();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [galleryItems, currentIndex]);
-
-  const openGallery = (attachments: Attachment[], index: number) => {
-    setGalleryItems(attachments);
-    setCurrentIndex(index);
-    setIsVideoLoading(true);
-  };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -152,6 +133,17 @@ const IncidentList: React.FC<IncidentListProps> = ({
       (prev) => (prev - 1 + galleryItems.length) % galleryItems.length,
     );
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!galleryItems) return;
+      if (e.key === "Escape") setGalleryItems(null);
+      if (e.key === "ArrowRight") handleNext();
+      if (e.key === "ArrowLeft") handlePrev();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [galleryItems, currentIndex]);
 
   const handleAddNote = async (incidentId: string) => {
     if (!newNote.trim()) return;
@@ -208,13 +200,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     <button
                       onClick={() => onEdit(incident)}
                       className="p-2 text-wood hover:bg-wood/10 rounded-full transition-all ml-auto"
-                      title="Editar"
                     >
                       <Pencil size={18} />
                     </button>
                   )}
                 </div>
-                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 leading-tight uppercase tracking-tight">
+                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
                   {incident.title}
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4 line-clamp-3">
@@ -226,16 +217,17 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {incident.attachments.map((att, idx) => (
                       <div
                         key={att.id}
-                        onClick={() =>
-                          openGallery(incident.attachments || [], idx)
-                        }
+                        onClick={() => {
+                          setGalleryItems(incident.attachments || []);
+                          setCurrentIndex(idx);
+                        }}
                         className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm cursor-pointer group"
                       >
                         {att.type === "image" ? (
                           <img
                             src={att.url}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            alt="Vista previa"
+                            alt=""
                           />
                         ) : (
                           <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900">
@@ -261,7 +253,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig.showLocation && (
                   <div className="flex items-center gap-1">
                     <MapPin size={14} />
@@ -282,7 +274,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   incident.user_name && (
                     <div className="flex items-center gap-1 text-wood">
                       <User size={14} />
-                      {incident.user_name} ({incident.user_house})
+                      {incident.user_name}
                     </div>
                   )}
               </div>
@@ -307,11 +299,11 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 </button>
                 {expandedNotes === incident.id && (
                   <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 animate-in slide-in-from-top-2">
-                    <div className="max-h-40 overflow-y-auto mb-3 space-y-2 custom-scrollbar pr-1">
+                    <div className="max-h-40 overflow-y-auto mb-3 space-y-2 custom-scrollbar">
                       {incident.notes?.map((note) => (
                         <div
                           key={note.id}
-                          className="bg-neutral-50 dark:bg-neutral-800 p-2 rounded-lg text-[10px] border border-neutral-100 dark:border-neutral-700"
+                          className="bg-neutral-50 dark:bg-neutral-800 p-2 rounded-lg text-[10px] border"
                         >
                           <div className="font-black text-wood uppercase mb-1">
                             {note.author_name}
@@ -331,12 +323,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         type="text"
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
-                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100"
-                        placeholder="Añadir nota..."
+                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+                        placeholder="Nota..."
                       />
                       <button
                         onClick={() => handleAddNote(incident.id)}
-                        className="bg-wood text-white p-2 rounded-lg active:scale-95 transition-transform"
+                        className="bg-wood text-white p-2 rounded-lg"
                       >
                         <Send size={14} />
                       </button>
@@ -345,7 +337,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 mt-auto">
+              <div className="flex flex-col gap-2">
                 {(userRole === "admin" || userRole === "supervisor") && (
                   <>
                     {!isClosed && (
@@ -355,7 +347,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all"
+                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all"
                           >
                             Procesar
                           </button>
@@ -365,7 +357,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all",
+                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -386,8 +378,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar incidencia?"))
-                            onDelete(incident.id);
+                          if (confirm("¿Borrar?")) onDelete(incident.id);
                         }}
                         className="text-[9px] text-red-500 font-black uppercase mt-1 transition-colors hover:text-red-700"
                       >
@@ -402,16 +393,14 @@ const IncidentList: React.FC<IncidentListProps> = ({
         );
       })}
 
-      {/* --- CARRUSEL MULTIMEDIA PREMIUM --- */}
+      {/* --- CARRUSEL MULTIMEDIA MEJORADO --- */}
       {galleryItems && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
-          {/* Fondo desenfocado */}
           <div
             className="absolute inset-0 bg-black/95 backdrop-blur-2xl"
             onClick={() => setGalleryItems(null)}
           />
 
-          {/* Controles superiores */}
           <div className="absolute top-6 left-0 right-0 px-6 flex justify-between items-center z-[110]">
             <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-xl">
               <span className="text-white font-black text-xs tracking-widest">
@@ -463,14 +452,14 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     </div>
                   )}
                   <video
-                    key={galleryItems[currentIndex].url} // Forzar recarga al cambiar vídeo para iPhone/Android
+                    key={galleryItems[currentIndex].url} // Forzar refresco
                     src={galleryItems[currentIndex].url}
                     controls
-                    autoPlay
-                    playsInline // Crítico para móviles
-                    preload="auto"
+                    playsInline
+                    muted={false}
+                    preload="metadata"
                     onCanPlay={() => setIsVideoLoading(false)}
-                    className="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-white/10"
+                    className="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-white/10 bg-black"
                   >
                     <source
                       src={galleryItems[currentIndex].url}
@@ -478,10 +467,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     />
                     <source
                       src={galleryItems[currentIndex].url}
+                      type="video/webm"
+                    />
+                    <source
+                      src={galleryItems[currentIndex].url}
                       type="video/quicktime"
-                    />{" "}
-                    {/* Soporte .MOV iPhone */}
-                    Tu navegador no soporta el formato de vídeo.
+                    />
                   </video>
                 </div>
               )}
@@ -497,7 +488,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
             )}
           </div>
 
-          {/* Miniaturas inferiores para navegación rápida */}
           {galleryItems.length > 1 && (
             <div className="absolute bottom-10 flex gap-2 overflow-x-auto p-2 max-w-md scrollbar-hide z-[110]">
               {galleryItems.map((item, i) => (
