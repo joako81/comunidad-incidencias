@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Incident, UserRole, IncidentViewConfig } from "../types";
 import {
   Clock,
   MapPin,
-  CheckCircle2,
   MessageSquare,
   Trash2,
   Send,
@@ -20,6 +19,8 @@ import {
   Pencil,
   X,
   Maximize2,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { formatDistanceToNow } from "date-fns";
@@ -116,12 +117,21 @@ const IncidentList: React.FC<IncidentListProps> = ({
 }) => {
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [newNote, setNewNote] = useState("");
-
-  // ESTADOS PARA EL VISUALIZADOR (NUEVO)
   const [previewMedia, setPreviewMedia] = useState<{
     url: string;
     type: "image" | "video";
+    name?: string;
   } | null>(null);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+
+  // Cerrar modal con tecla ESC
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewMedia(null);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
 
   const handleAddNote = async (incidentId: string) => {
     if (!newNote.trim()) return;
@@ -181,54 +191,63 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     <button
                       onClick={() => onEdit(incident)}
                       className="p-2 text-wood hover:bg-wood/10 rounded-full transition-all ml-auto"
-                      title="Editar incidencia"
+                      title="Editar"
                     >
                       <Pencil size={18} />
                     </button>
                   )}
                 </div>
-                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
+                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 leading-tight uppercase">
                   {incident.title}
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4 line-clamp-3">
                   {incident.description}
                 </p>
 
-                {/* --- SECCIÓN ADJUNTOS CON CLIC PARA AMPLIAR --- */}
                 {incident.attachments && incident.attachments.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                     {incident.attachments.map((att) => (
                       <div
                         key={att.id}
-                        onClick={() =>
+                        onClick={() => {
+                          setIsVideoLoading(true);
                           setPreviewMedia({
                             url: att.url,
                             type: att.type as "image" | "video",
-                          })
-                        }
-                        className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm cursor-zoom-in group"
+                            name: att.name,
+                          });
+                        }}
+                        className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm cursor-pointer group"
                       >
                         {att.type === "image" ? (
-                          <>
-                            <img
-                              src={att.url}
-                              className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                              alt=""
-                            />
-                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                              <Maximize2 size={16} className="text-white" />
-                            </div>
-                          </>
+                          <img
+                            src={att.url}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            alt="Vista previa"
+                          />
                         ) : (
-                          <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800 transition-colors">
-                            <PlayCircle size={24} className="text-wood" />
+                          <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900">
+                            <PlayCircle
+                              size={32}
+                              className="text-wood group-hover:scale-110 transition-transform"
+                            />
+                            <div className="absolute bottom-1 right-1 bg-black/50 text-[8px] text-white px-1 rounded uppercase font-bold">
+                              Video
+                            </div>
                           </div>
                         )}
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Maximize2
+                            size={16}
+                            className="text-white shadow-xl"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+
               <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig.showLocation && (
                   <div className="flex items-center gap-1">
@@ -255,6 +274,8 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   )}
               </div>
             </div>
+
+            {/* BARRA DE NOTAS Y ESTADOS */}
             <div className="bg-neutral-50/50 dark:bg-neutral-900/40 p-5 md:w-72 border-t md:border-t-0 md:border-l border-neutral-100 dark:border-neutral-800 flex flex-col justify-between gap-4">
               <div>
                 <button
@@ -299,7 +320,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
                         className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
-                        placeholder="Añadir nota..."
+                        placeholder="Escribir nota..."
                       />
                       <button
                         onClick={() => handleAddNote(incident.id)}
@@ -322,7 +343,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all"
+                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md"
                           >
                             Procesar
                           </button>
@@ -332,7 +353,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all",
+                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -353,7 +374,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar permanentemente?"))
+                          if (confirm("¿Borrar incidencia?"))
                             onDelete(incident.id);
                         }}
                         className="flex items-center justify-center gap-2 text-[9px] text-red-500 hover:text-red-700 py-1 font-black uppercase tracking-tighter transition-colors mt-1"
@@ -369,36 +390,66 @@ const IncidentList: React.FC<IncidentListProps> = ({
         );
       })}
 
-      {/* --- MODAL DE PREVISUALIZACIÓN MULTIMEDIA (NUEVO) --- */}
+      {/* --- VISUALIZADOR MULTIMEDIA PRO --- */}
       {previewMedia && (
         <div
-          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-xl animate-in fade-in duration-300"
           onClick={() => setPreviewMedia(null)}
         >
-          <button
-            className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors bg-white/10 p-2 rounded-full"
-            onClick={() => setPreviewMedia(null)}
-          >
-            <X size={32} />
-          </button>
+          {/* Botones de acción del Modal */}
+          <div className="absolute top-4 right-4 flex gap-4 z-[110]">
+            <a
+              href={previewMedia.url}
+              download={previewMedia.name || "archivo"}
+              onClick={(e) => e.stopPropagation()}
+              className="text-white/70 hover:text-white p-2 bg-white/10 rounded-full transition-all"
+              title="Descargar"
+            >
+              <Download size={24} />
+            </a>
+            <button
+              className="text-white/70 hover:text-white p-2 bg-white/10 rounded-full transition-all"
+              onClick={() => setPreviewMedia(null)}
+            >
+              <X size={24} />
+            </button>
+          </div>
 
           <div
-            className="max-w-5xl max-h-full flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()} // Evita que se cierre al pulsar la imagen
+            className="relative w-full max-w-5xl h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
           >
             {previewMedia.type === "image" ? (
               <img
                 src={previewMedia.url}
-                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-500"
                 alt="Vista ampliada"
               />
             ) : (
-              <video
-                src={previewMedia.url}
-                controls
-                autoPlay
-                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
-              />
+              <div className="relative w-full flex justify-center items-center">
+                {isVideoLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <Loader2 className="animate-spin text-wood" size={48} />
+                  </div>
+                )}
+                <video
+                  src={previewMedia.url}
+                  controls
+                  autoPlay
+                  onCanPlay={() => setIsVideoLoading(false)}
+                  className="max-w-full max-h-[85vh] rounded-xl shadow-2xl border border-white/10"
+                  playsInline // IMPORTANTE para móviles
+                >
+                  Tu navegador no soporta el formato de vídeo.
+                </video>
+              </div>
+            )}
+
+            {/* Nombre del archivo en la parte inferior */}
+            {previewMedia.name && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-xs font-medium bg-black/40 px-4 py-2 rounded-full backdrop-blur-md">
+                {previewMedia.name}
+              </div>
             )}
           </div>
         </div>
