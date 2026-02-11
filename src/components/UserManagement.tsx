@@ -178,7 +178,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
         receive_emails: receiveEmails,
         custom_fields,
         password: formValues["password"],
-        status: "active",
+        status: "active", // AQUÍ ESTÁ LA CLAVE: Nace activo
       });
       errorResult = error;
     } else {
@@ -611,7 +611,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               >
                 <Save size={18} />{" "}
                 {loading
-                  ? "Guardando..."
+                  ? "Procesando..."
                   : viewMode === "create"
                     ? "Crear Usuario"
                     : "Guardar Cambios"}

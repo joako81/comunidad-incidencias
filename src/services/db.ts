@@ -85,12 +85,13 @@ export const dbCreateUser = async (
     const newUser = {
       ...user,
       id: `u${Date.now()}`,
-      status: "pending" as const,
+      status: user.status || "pending",
     };
     return { data: newUser as User, error: null };
   } else {
     if (!supabase) return { data: null, error: "Error de conexión" };
 
+    // 1. Crear usuario en Auth (El Trigger lo pondrá en 'pending' por defecto)
     const { data, error } = await supabase.auth.signUp({
       email: user.email || "",
       password: user.password || "",
@@ -106,8 +107,23 @@ export const dbCreateUser = async (
     if (error) return { data: null, error: error.message };
 
     if (data.user) {
+      // 2. SI ES ADMIN (status='active'), forzamos la actualización inmediata
+      if (user.status === "active") {
+        await supabase
+          .from("profiles")
+          .update({
+            status: "active",
+            role: user.role || "user", // Aseguramos que el rol también se guarde bien
+          })
+          .eq("id", data.user.id);
+      }
+
       return {
-        data: { ...user, id: data.user.id, status: "pending" } as User,
+        data: {
+          ...user,
+          id: data.user.id,
+          status: user.status || "pending",
+        } as User,
         error: null,
       };
     }
