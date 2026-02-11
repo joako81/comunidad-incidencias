@@ -360,7 +360,6 @@ export const dbUpdateNote = async (
   if (MODO_PRUEBA) return { data: true, error: null };
   if (!supabase) return { data: false, error: "No connection" };
 
-  // 1. Obtener la incidencia específica para tener el array de notas actual
   const { data: incident, error: fetchError } = await supabase
     .from("incidents")
     .select("notes")
@@ -370,14 +369,12 @@ export const dbUpdateNote = async (
   if (fetchError || !incident)
     return { data: false, error: "No se encontró la incidencia." };
 
-  // 2. Modificar la nota específica dentro del array
   const updatedNotes = (incident.notes || []).map((n: any) =>
     n.id === noteId
       ? { ...n, content: newContent, updated_at: new Date().toISOString() }
       : n,
   );
 
-  // 3. Guardar el array completo actualizado
   const { error: updateError } = await supabase
     .from("incidents")
     .update({ notes: updatedNotes })
@@ -393,7 +390,6 @@ export const dbDeleteNote = async (
   if (MODO_PRUEBA) return { data: true, error: null };
   if (!supabase) return { data: false, error: "No connection" };
 
-  // 1. Obtener las notas actuales
   const { data: incident } = await supabase
     .from("incidents")
     .select("notes")
@@ -402,12 +398,10 @@ export const dbDeleteNote = async (
 
   if (!incident) return { data: false, error: "No se encontró la incidencia." };
 
-  // 2. Filtrar para eliminar la nota
   const updatedNotes = (incident.notes || []).filter(
     (n: any) => n.id !== noteId,
   );
 
-  // 3. Actualizar la base de datos
   const { error } = await supabase
     .from("incidents")
     .update({ notes: updatedNotes })

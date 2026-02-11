@@ -132,9 +132,19 @@ const IncidentList: React.FC<IncidentListProps> = ({
     onRefresh();
   };
 
+  const handleEditNoteClick = (
+    incidentId: string,
+    noteId: string,
+    content: string,
+  ) => {
+    setExpandedNotes(incidentId);
+    setEditingNoteId(noteId);
+    setNewNote(content);
+  };
+
   const handleDeleteNote = async (incidentId: string, noteId: string) => {
     if (
-      confirm("¿Estás seguro de que deseas borrar esta nota permanentemente?")
+      confirm("¿Estás seguro de que deseas eliminar esta nota permanentemente?")
     ) {
       await dbDeleteNote(incidentId, noteId);
       onRefresh();
@@ -210,7 +220,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
               <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
                 {incident.title}
               </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4">
+              <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4 line-clamp-3">
                 {incident.description}
               </p>
 
@@ -248,6 +258,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 </div>
               )}
 
+              {/* HISTORIAL DE NOTAS DEBAJO DE IMÁGENES */}
               {incident.notes && incident.notes.length > 0 && (
                 <div className="mt-2 mb-4 bg-neutral-50/50 dark:bg-neutral-900/20 p-3 rounded-xl border border-neutral-100 dark:border-neutral-800">
                   <span className="text-[10px] font-black uppercase text-neutral-400 mb-2 block tracking-widest">
@@ -277,15 +288,20 @@ const IncidentList: React.FC<IncidentListProps> = ({
                                 )}
                               </span>
                             </div>
+
+                            {/* BOTONES DE EDICIÓN Y BORRADO DE NOTAS */}
                             {canManageNote && (
                               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                  onClick={() => {
-                                    setExpandedNotes(incident.id);
-                                    setEditingNoteId(note.id);
-                                    setNewNote(note.content);
-                                  }}
+                                  onClick={() =>
+                                    handleEditNoteClick(
+                                      incident.id,
+                                      note.id,
+                                      note.content,
+                                    )
+                                  }
                                   className="text-blue-500 hover:text-blue-700"
+                                  title="Editar nota"
                                 >
                                   <Pencil size={12} />
                                 </button>
@@ -294,6 +310,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                                     handleDeleteNote(incident.id, note.id)
                                   }
                                   className="text-red-500 hover:text-red-700"
+                                  title="Borrar nota"
                                 >
                                   <Trash2 size={12} />
                                 </button>
@@ -363,7 +380,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       className="w-full rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 min-h-[80px] mb-2"
-                      placeholder="Escribir nota..."
+                      placeholder="Escribir..."
                     />
                     <div className="flex gap-1">
                       {editingNoteId && (
@@ -382,7 +399,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         className="bg-wood text-white p-2 rounded-lg flex-grow font-black uppercase text-[10px] flex items-center justify-center gap-2"
                       >
                         <Send size={14} />{" "}
-                        {editingNoteId ? "Actualizar" : "Enviar"}
+                        {editingNoteId ? "Guardar" : "Enviar"}
                       </button>
                     </div>
                   </div>
@@ -399,7 +416,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase transition-all hover:scale-105 active:scale-95"
+                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all"
                           >
                             Procesar
                           </button>
@@ -409,7 +426,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase transition-all hover:scale-105 active:scale-95",
+                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -430,7 +447,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar incidencia definitivamente?"))
+                          if (confirm("¿Borrar incidencia?"))
                             onDelete(incident.id);
                         }}
                         className="text-[9px] text-red-500 font-black uppercase mt-1 transition-colors hover:text-red-700 flex items-center justify-center gap-1"
@@ -446,7 +463,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
         );
       })}
 
-      {/* Carrusel Multimedia corregido */}
+      {/* CARRUSEL MULTIMEDIA */}
       {galleryItems && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
           <div
