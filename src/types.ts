@@ -11,7 +11,7 @@ export interface User {
   full_name?: string;
   house_number?: string;
   receive_emails?: boolean;
-  custom_fields?: Record<string, string>; // Campos dinámicos
+  custom_fields?: Record<string, string>;
 }
 
 export interface IncidentNote {
@@ -55,7 +55,6 @@ export interface Incident {
   notes?: IncidentNote[];
 }
 
-// --- CONFIGURACIÓN DE VISTA (RECUPERADO) ---
 export interface IncidentViewConfig {
   showLocation: boolean;
   showDate: boolean;
@@ -88,17 +87,16 @@ export interface SortOptionConfig {
 
 export interface UserFieldConfig {
   id: string;
-  key: string;
+  key: string; // 'username', 'password', 'email', 'full_name', 'house_number', 'role' or custom
   label: string;
   placeholder: string;
   active: boolean;
-  isSystem: boolean;
+  isSystem: boolean; // System fields (username, password...) cannot be deleted, only hidden (some not even hidden)
 }
 
 export interface AppConfig {
   categories: string[];
   sortOptions: SortOptionConfig[];
   userFields: UserFieldConfig[];
-  pendingAccountMessage: string;
-  viewConfig?: IncidentViewConfig; // AÑADIDO PARA PERSISTENCIA
+  pendingAccountMessage: string; // New field for customizable waiting message
 }
