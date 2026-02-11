@@ -21,8 +21,8 @@ interface IncidentFormProps {
   onSuccess: () => void;
   userId: string;
   userRole: UserRole;
-  userName?: string; // NUEVO: Para guardar el nombre del creador
-  userHouse?: string; // NUEVO: Para guardar la casa del creador
+  userName?: string; // NUEVO: Recibe el nombre
+  userHouse?: string; // NUEVO: Recibe la casa
   editingIncident?: Incident | null;
 }
 
@@ -167,8 +167,9 @@ const IncidentForm: React.FC<IncidentFormProps> = ({
         : await dbCreateIncident({
             ...data,
             user_id: userId,
-            user_name: userName, // GUARDAMOS EL NOMBRE
-            user_house: userHouse, // GUARDAMOS LA CASA
+            // AQUÍ ESTABA EL FALLO: Ahora guardamos nombre y casa
+            user_name: userName || "Anónimo",
+            user_house: userHouse || "",
             status: "pendiente",
           });
 

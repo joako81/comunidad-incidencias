@@ -39,7 +39,6 @@ import {
   Home,
   Save,
 } from "lucide-react";
-import IncidentForm from "./IncidentForm"; // Asegúrate de importar el formulario si lo usas aquí, o si se pasa desde App (en tu código original estaba en App, pero para completar el contexto lo incluyo)
 
 interface DashboardProps {
   user: User;
@@ -73,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     SortOptionConfig[]
   >([]);
 
-  // Configuración de Vista (EL OJO)
+  // Configuración de Vista (EL OJO) - AÑADIDO showViewConfigMenu
   const [showViewConfigMenu, setShowViewConfigMenu] = useState(false);
   const [viewConfig, setViewConfig] = useState<IncidentViewConfig>({
     showLocation: true,
@@ -110,12 +109,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const fetchData = async () => {
     setLoading(true);
 
-    // 1. Configuración Global
     const appConfig = await dbGetAppConfig();
     if (appConfig) {
       if (appConfig.categories) setCategories(appConfig.categories);
 
-      // Ordenación
       if (appConfig.sortOptions) {
         const activeOptions = appConfig.sortOptions.filter((o) => o.active);
         setAvailableSortOptions(activeOptions);
@@ -127,29 +124,24 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
       }
 
-      // Vista por defecto
       if (appConfig.viewConfig) {
         setViewConfig(appConfig.viewConfig);
       }
 
-      // Mensaje pendientes
       setPendingMessage(
         appConfig.pendingAccountMessage ||
           "Tu cuenta está pendiente de aprobación.",
       );
     }
 
-    // 2. Seguridad Usuario Pendiente
     if (user.status === "pending") {
       setLoading(false);
       return;
     }
 
-    // 3. Incidencias
     const { data } = await dbGetIncidents();
     if (data) setIncidents(data);
 
-    // 4. Usuarios Pendientes (Solo Admin/Supervisor)
     if (user.role === "admin" || user.role === "supervisor") {
       const pending = await dbGetPendingUsers();
       setPendingUsers(pending);
@@ -281,7 +273,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (!file) return;
     setImporting(true);
 
-    // Simulación de lectura básica
     setTimeout(async () => {
       setImporting(false);
       setShowImportModal(false);
@@ -313,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // --- FILTROS Y ORDENACIÓN ---
   let filteredIncidents = incidents.filter((inc) => {
-    // NUEVA LÓGICA DE FILTROS INCLUYENDO "PENDING"
+    // NUEVA LÓGICA DE FILTROS: Pendientes vs Activas vs Resueltas
     const statusMatch =
       filter === "all"
         ? true
@@ -323,7 +314,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             ? inc.status === "resuelto" || inc.status === "rechazado"
             : filter === "pending"
               ? inc.status === "pendiente"
-              : true; // Filtro Pendientes
+              : true;
 
     const categoryMatch =
       categoryFilter === "all" ? true : inc.category === categoryFilter;
@@ -417,7 +408,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             )}
           </div>
-          {/* Tarjetas de usuarios pendientes... */}
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {pendingUsers.map((pu) => (
               <div
@@ -472,11 +462,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {/* BARRA DE HERRAMIENTAS */}
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Filtros Básicos - AÑADIDO PENDIENTES */}
+          {/* Filtros Básicos - AHORA CON PENDIENTES */}
           <div className="flex items-center gap-2 bg-neutral-800 p-1 rounded-lg border border-neutral-700 shadow-sm">
             {[
               { id: "all", label: "Todas" },
-              { id: "pending", label: "Pendientes" }, // NUEVO BOTÓN
+              { id: "pending", label: "Pendientes" },
               { id: "active", label: "Activas" },
               { id: "resolved", label: "Resueltas" },
             ].map((f) => (
@@ -527,7 +517,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
           {/* --- BOTONERA DE ACCIONES --- */}
           <div className="flex gap-2 relative">
-            {/* Selección (Admin) */}
             {isAdmin && (
               <button
                 onClick={() => setIsSelectionMode(!isSelectionMode)}
@@ -538,7 +527,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               </button>
             )}
 
-            {/* Configuración (Admin) */}
             {isAdmin && (
               <button
                 onClick={() => setShowAdminSettings(true)}
@@ -549,7 +537,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               </button>
             )}
 
-            {/* Censo */}
             <button
               onClick={() => setShowHouseRegistry(true)}
               className="p-2 rounded border border-neutral-600 bg-neutral-800 text-neutral-400 hover:text-white"
@@ -568,7 +555,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <Eye size={18} />
               </button>
 
-              {/* MENÚ FLOTANTE DEL OJO */}
+              {/* MENÚ FLOTANTE DEL OJO (RECUPERADO) */}
               {showViewConfigMenu && (
                 <div className="absolute top-10 right-0 bg-neutral-900 border border-neutral-700 p-4 rounded-xl shadow-2xl z-50 w-64 animate-in fade-in slide-in-from-top-2">
                   <div className="flex justify-between items-center mb-3 pb-2 border-b border-neutral-700">
@@ -651,7 +638,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
 
-            {/* Importar */}
             <button
               onClick={() => setShowImportModal(true)}
               className="p-2 rounded border border-neutral-600 bg-neutral-800 text-neutral-400 hover:text-white"
@@ -660,7 +646,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               <FileUp size={18} />
             </button>
 
-            {/* Exportar */}
             <button
               onClick={() => setShowExportModal(true)}
               className="flex items-center gap-2 bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded font-bold text-sm shadow-sm transition-colors"
@@ -720,7 +705,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         )}
       </div>
 
-      {/* MODALES */}
       {showAdminSettings && (
         <AdminSettings
           onClose={() => setShowAdminSettings(false)}

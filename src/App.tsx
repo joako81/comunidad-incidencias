@@ -97,6 +97,9 @@ function App() {
                     }}
                     onSuccess={handleCreateSuccess}
                     userId={user.id}
+                    // AQUI PASAMOS LOS DATOS PARA EVITAR EL ANÓNIMO
+                    userName={user.full_name || user.username}
+                    userHouse={user.house_number || ""}
                     userRole={user.role}
                     editingIncident={editingIncident}
                   />
