@@ -351,3 +351,62 @@ export const dbUpdateIncident = async (
 
   return { data: !error, error: error?.message || null };
 };
+
+export const dbUpdateNote = async (
+  noteId: string,
+  newContent: string,
+): Promise<DataResponse<boolean>> => {
+  if (MODO_PRUEBA) return { data: true, error: null };
+  if (!supabase) return { data: false, error: "No connection" };
+
+  // 1. Buscamos la incidencia que contiene la nota
+  const { data: incident } = await supabase
+    .from("incidents")
+    .select("id, notes")
+    .contains("notes", [{ id: noteId }])
+    .single();
+
+  if (!incident) return { data: false, error: "No se encontró la nota." };
+
+  // 2. Actualizamos el texto de la nota dentro del array
+  const updatedNotes = incident.notes.map((n: any) =>
+    n.id === noteId
+      ? { ...n, content: newContent, updated_at: new Date().toISOString() }
+      : n,
+  );
+
+  // 3. Guardamos el array de notas actualizado
+  const { error } = await supabase
+    .from("incidents")
+    .update({ notes: updatedNotes })
+    .eq("id", incident.id);
+
+  return { data: !error, error: error?.message || null };
+};
+
+export const dbDeleteNote = async (
+  noteId: string,
+): Promise<DataResponse<boolean>> => {
+  if (MODO_PRUEBA) return { data: true, error: null };
+  if (!supabase) return { data: false, error: "No connection" };
+
+  // 1. Buscamos la incidencia
+  const { data: incident } = await supabase
+    .from("incidents")
+    .select("id, notes")
+    .contains("notes", [{ id: noteId }])
+    .single();
+
+  if (!incident) return { data: false, error: "No se encontró la nota." };
+
+  // 2. Filtramos el array para quitar la nota
+  const updatedNotes = incident.notes.filter((n: any) => n.id !== noteId);
+
+  // 3. Guardamos el nuevo array
+  const { error } = await supabase
+    .from("incidents")
+    .update({ notes: updatedNotes })
+    .eq("id", incident.id);
+
+  return { data: !error, error: error?.message || null };
+};
