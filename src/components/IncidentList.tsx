@@ -179,14 +179,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     </button>
                   )}
                 </div>
-
-                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 leading-tight uppercase tracking-tight">
+                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
                   {incident.title}
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4 line-clamp-3">
                   {incident.description}
                 </p>
-
                 {incident.attachments && incident.attachments.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     {incident.attachments.map((att) => (
@@ -210,8 +208,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </div>
                 )}
               </div>
-
-              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig.showLocation && (
                   <div className="flex items-center gap-1">
                     <MapPin size={14} />
@@ -237,7 +234,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   )}
               </div>
             </div>
-
             <div className="bg-neutral-50/50 dark:bg-neutral-900/40 p-5 md:w-72 border-t md:border-t-0 md:border-l border-neutral-100 dark:border-neutral-800 flex flex-col justify-between gap-4">
               <div>
                 <button
@@ -281,12 +277,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         type="text"
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
-                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100"
                         placeholder="Añadir nota..."
                       />
                       <button
                         onClick={() => handleAddNote(incident.id)}
-                        className="bg-wood text-white p-2 rounded-lg active:scale-90 transition-transform"
+                        className="bg-wood text-white p-2 rounded-lg"
                       >
                         <Send size={14} />
                       </button>
@@ -294,7 +290,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </div>
                 )}
               </div>
-
               <div className="flex flex-col gap-2">
                 {(userRole === "admin" || userRole === "supervisor") && (
                   <>
@@ -305,7 +300,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all"
+                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase"
                           >
                             Procesar
                           </button>
@@ -315,7 +310,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all",
+                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -328,7 +323,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         onClick={() =>
                           onStatusChange(incident.id, "en_proceso")
                         }
-                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase tracking-widest shadow-sm hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-all"
+                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase"
                       >
                         <RefreshCw size={14} /> Reabrir
                       </button>
@@ -336,12 +331,11 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar permanentemente?"))
-                            onDelete(incident.id);
+                          if (confirm("¿Borrar?")) onDelete(incident.id);
                         }}
-                        className="flex items-center justify-center gap-2 text-[9px] text-red-500 hover:text-red-700 py-1 font-black uppercase tracking-tighter transition-colors mt-1"
+                        className="text-[9px] text-red-500 font-black uppercase mt-1"
                       >
-                        <Trash2 size={12} /> Eliminar
+                        <Trash2 size={12} className="inline" /> Eliminar
                       </button>
                     )}
                   </>

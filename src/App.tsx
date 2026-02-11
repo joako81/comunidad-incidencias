@@ -5,18 +5,18 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-// Nota: Ya no ponemos "/src/" porque estamos dentro de ella
 import Auth from "./components/Auth";
 import Layout from "./components/Layout";
 import Dashboard from "./components/Dashboard";
 import IncidentForm from "./components/IncidentForm";
-import { User } from "./types";
+import { User, Incident } from "./types";
 import { dbGetSession } from "./services/db";
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showUserManagement, setShowUserManagement] = useState(false);
 
@@ -40,7 +40,18 @@ function App() {
 
   const handleCreateSuccess = () => {
     setShowModal(false);
+    setEditingIncident(null);
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleOpenEdit = (incident: Incident) => {
+    setEditingIncident(incident);
+    setShowModal(true);
+  };
+
+  const handleOpenNew = () => {
+    setEditingIncident(null);
+    setShowModal(true);
   };
 
   if (loading) {
@@ -65,7 +76,7 @@ function App() {
               <Layout
                 user={user}
                 onLogout={handleLogout}
-                onNewIncident={() => setShowModal(true)}
+                onNewIncident={handleOpenNew}
                 onToggleUserView={() =>
                   setShowUserManagement(!showUserManagement)
                 }
@@ -76,13 +87,18 @@ function App() {
                   refreshTrigger={refreshTrigger}
                   showUserManagement={showUserManagement}
                   onCloseUserManagement={() => setShowUserManagement(false)}
+                  onEditIncident={handleOpenEdit}
                 />
                 {showModal && (
                   <IncidentForm
-                    onClose={() => setShowModal(false)}
+                    onClose={() => {
+                      setShowModal(false);
+                      setEditingIncident(null);
+                    }}
                     onSuccess={handleCreateSuccess}
                     userId={user.id}
                     userRole={user.role}
+                    editingIncident={editingIncident}
                   />
                 )}
               </Layout>
