@@ -18,6 +18,8 @@ import {
   PlayCircle,
   RefreshCw,
   Pencil,
+  X,
+  Maximize2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { formatDistanceToNow } from "date-fns";
@@ -115,6 +117,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [newNote, setNewNote] = useState("");
 
+  // ESTADOS PARA EL VISUALIZADOR (NUEVO)
+  const [previewMedia, setPreviewMedia] = useState<{
+    url: string;
+    type: "image" | "video";
+  } | null>(null);
+
   const handleAddNote = async (incidentId: string) => {
     if (!newNote.trim()) return;
     await dbAddNote(incidentId, newNote, userName);
@@ -185,21 +193,34 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4 line-clamp-3">
                   {incident.description}
                 </p>
+
+                {/* --- SECCIÓN ADJUNTOS CON CLIC PARA AMPLIAR --- */}
                 {incident.attachments && incident.attachments.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     {incident.attachments.map((att) => (
                       <div
                         key={att.id}
-                        className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm"
+                        onClick={() =>
+                          setPreviewMedia({
+                            url: att.url,
+                            type: att.type as "image" | "video",
+                          })
+                        }
+                        className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm cursor-zoom-in group"
                       >
                         {att.type === "image" ? (
-                          <img
-                            src={att.url}
-                            className="w-full h-full object-cover"
-                            alt=""
-                          />
+                          <>
+                            <img
+                              src={att.url}
+                              className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                              alt=""
+                            />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <Maximize2 size={16} className="text-white" />
+                            </div>
+                          </>
                         ) : (
-                          <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900">
+                          <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800 transition-colors">
                             <PlayCircle size={24} className="text-wood" />
                           </div>
                         )}
@@ -208,7 +229,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig.showLocation && (
                   <div className="flex items-center gap-1">
                     <MapPin size={14} />
@@ -277,12 +298,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         type="text"
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
-                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100"
+                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
                         placeholder="Añadir nota..."
                       />
                       <button
                         onClick={() => handleAddNote(incident.id)}
-                        className="bg-wood text-white p-2 rounded-lg"
+                        className="bg-wood text-white p-2 rounded-lg active:scale-90 transition-transform"
                       >
                         <Send size={14} />
                       </button>
@@ -290,6 +311,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </div>
                 )}
               </div>
+
               <div className="flex flex-col gap-2">
                 {(userRole === "admin" || userRole === "supervisor") && (
                   <>
@@ -300,7 +322,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase"
+                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all"
                           >
                             Procesar
                           </button>
@@ -310,7 +332,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase",
+                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -323,7 +345,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         onClick={() =>
                           onStatusChange(incident.id, "en_proceso")
                         }
-                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase"
+                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase tracking-widest shadow-sm hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-all"
                       >
                         <RefreshCw size={14} /> Reabrir
                       </button>
@@ -331,11 +353,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar?")) onDelete(incident.id);
+                          if (confirm("¿Borrar permanentemente?"))
+                            onDelete(incident.id);
                         }}
-                        className="text-[9px] text-red-500 font-black uppercase mt-1"
+                        className="flex items-center justify-center gap-2 text-[9px] text-red-500 hover:text-red-700 py-1 font-black uppercase tracking-tighter transition-colors mt-1"
                       >
-                        <Trash2 size={12} className="inline" /> Eliminar
+                        <Trash2 size={12} /> Eliminar
                       </button>
                     )}
                   </>
@@ -345,6 +368,41 @@ const IncidentList: React.FC<IncidentListProps> = ({
           </div>
         );
       })}
+
+      {/* --- MODAL DE PREVISUALIZACIÓN MULTIMEDIA (NUEVO) --- */}
+      {previewMedia && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setPreviewMedia(null)}
+        >
+          <button
+            className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors bg-white/10 p-2 rounded-full"
+            onClick={() => setPreviewMedia(null)}
+          >
+            <X size={32} />
+          </button>
+
+          <div
+            className="max-w-5xl max-h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()} // Evita que se cierre al pulsar la imagen
+          >
+            {previewMedia.type === "image" ? (
+              <img
+                src={previewMedia.url}
+                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+                alt="Vista ampliada"
+              />
+            ) : (
+              <video
+                src={previewMedia.url}
+                controls
+                autoPlay
+                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
