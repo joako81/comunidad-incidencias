@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Incident, UserRole, IncidentViewConfig } from "../types";
+import { Incident, UserRole, IncidentViewConfig, Attachment } from "../types";
 import {
   Clock,
   MapPin,
@@ -18,9 +18,11 @@ import {
   RefreshCw,
   Pencil,
   X,
-  Maximize2,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Loader2,
+  Film,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { formatDistanceToNow } from "date-fns";
@@ -51,13 +53,6 @@ const statusColors = {
     "text-green-900 bg-green-200 border-green-400 dark:text-green-200 dark:bg-green-900/50 dark:border-green-700",
   rechazado:
     "text-red-900 bg-red-200 border-red-400 dark:text-red-200 dark:bg-red-900/50 dark:border-red-700",
-};
-
-const priorityColors = {
-  baja: "text-gray-600 dark:text-gray-400",
-  media: "text-blue-700 dark:text-blue-400",
-  alta: "text-orange-700 dark:text-orange-400",
-  urgente: "text-red-700 font-black dark:text-red-500",
 };
 
 const getCategoryStyle = (cat: string) => {
@@ -117,21 +112,41 @@ const IncidentList: React.FC<IncidentListProps> = ({
 }) => {
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [newNote, setNewNote] = useState("");
-  const [previewMedia, setPreviewMedia] = useState<{
-    url: string;
-    type: "image" | "video";
-    name?: string;
-  } | null>(null);
+
+  // ESTADOS DEL CARRUSEL
+  const [galleryItems, setGalleryItems] = useState<Attachment[] | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
-  // Cerrar modal con tecla ESC
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPreviewMedia(null);
+      if (e.key === "Escape") setGalleryItems(null);
+      if (e.key === "ArrowRight") handleNext();
+      if (e.key === "ArrowLeft") handlePrev();
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, []);
+  }, [galleryItems, currentIndex]);
+
+  const openGallery = (attachments: Attachment[], index: number) => {
+    setGalleryItems(attachments);
+    setCurrentIndex(index);
+    setIsVideoLoading(true);
+  };
+
+  const handleNext = () => {
+    if (!galleryItems) return;
+    setIsVideoLoading(true);
+    setCurrentIndex((prev) => (prev + 1) % galleryItems.length);
+  };
+
+  const handlePrev = () => {
+    if (!galleryItems) return;
+    setIsVideoLoading(true);
+    setCurrentIndex(
+      (prev) => (prev - 1 + galleryItems.length) % galleryItems.length,
+    );
+  };
 
   const handleAddNote = async (incidentId: string) => {
     if (!newNote.trim()) return;
@@ -154,12 +169,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
         return (
           <div
             key={incident.id}
-            className={clsx(
-              "bg-white dark:bg-card border-2 rounded-2xl overflow-hidden shadow-sm flex flex-col md:flex-row relative transition-all",
-              selectable && selectedIds.includes(incident.id)
-                ? "border-wood ring-2 ring-wood/20"
-                : "border-neutral-100 dark:border-neutral-800 hover:border-wood/40",
-            )}
+            className="bg-white dark:bg-card border-2 rounded-2xl overflow-hidden shadow-sm flex flex-col md:flex-row relative transition-all border-neutral-100 dark:border-neutral-800 hover:border-wood/40"
           >
             <div
               className={clsx(
@@ -191,55 +201,48 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     <button
                       onClick={() => onEdit(incident)}
                       className="p-2 text-wood hover:bg-wood/10 rounded-full transition-all ml-auto"
-                      title="Editar"
                     >
                       <Pencil size={18} />
                     </button>
                   )}
                 </div>
-                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 leading-tight uppercase">
+                <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
                   {incident.title}
                 </h3>
-                <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4 line-clamp-3">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4">
                   {incident.description}
                 </p>
 
+                {/* MINIATURAS ADJUNTOS */}
                 {incident.attachments && incident.attachments.length > 0 && (
                   <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                    {incident.attachments.map((att) => (
+                    {incident.attachments.map((att, idx) => (
                       <div
                         key={att.id}
-                        onClick={() => {
-                          setIsVideoLoading(true);
-                          setPreviewMedia({
-                            url: att.url,
-                            type: att.type as "image" | "video",
-                            name: att.name,
-                          });
-                        }}
+                        onClick={() =>
+                          openGallery(incident.attachments || [], idx)
+                        }
                         className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 shadow-sm cursor-pointer group"
                       >
                         {att.type === "image" ? (
                           <img
                             src={att.url}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            alt="Vista previa"
+                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                            alt=""
                           />
                         ) : (
-                          <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900">
-                            <PlayCircle
-                              size={32}
-                              className="text-wood group-hover:scale-110 transition-transform"
+                          <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900 group-hover:bg-neutral-200 transition-colors">
+                            <PlayCircle size={32} className="text-wood" />
+                            <Film
+                              size={12}
+                              className="absolute bottom-1 right-1 text-white/50"
                             />
-                            <div className="absolute bottom-1 right-1 bg-black/50 text-[8px] text-white px-1 rounded uppercase font-bold">
-                              Video
-                            </div>
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
                           <Maximize2
                             size={16}
-                            className="text-white shadow-xl"
+                            className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
                           />
                         </div>
                       </div>
@@ -248,7 +251,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 font-black uppercase tracking-widest mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig.showLocation && (
                   <div className="flex items-center gap-1">
                     <MapPin size={14} />
@@ -269,13 +272,13 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   incident.user_name && (
                     <div className="flex items-center gap-1 text-wood">
                       <User size={14} />
-                      {incident.user_name} ({incident.user_house})
+                      {incident.user_name}
                     </div>
                   )}
               </div>
             </div>
 
-            {/* BARRA DE NOTAS Y ESTADOS */}
+            {/* BARRA LATERAL NOTAS/ESTADOS */}
             <div className="bg-neutral-50/50 dark:bg-neutral-900/40 p-5 md:w-72 border-t md:border-t-0 md:border-l border-neutral-100 dark:border-neutral-800 flex flex-col justify-between gap-4">
               <div>
                 <button
@@ -284,7 +287,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       expandedNotes === incident.id ? null : incident.id,
                     )
                   }
-                  className="text-[10px] flex items-center justify-between w-full bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-wood font-black uppercase tracking-widest hover:border-wood transition-all shadow-sm"
+                  className="text-[10px] flex items-center justify-between w-full bg-white dark:bg-neutral-800 border-2 border-neutral-200 rounded-xl px-4 py-2.5 text-wood font-black uppercase shadow-sm"
                 >
                   <span className="flex items-center gap-2">
                     <MessageSquare size={14} /> Notas
@@ -294,22 +297,22 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </span>
                 </button>
                 {expandedNotes === incident.id && (
-                  <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 dark:border-neutral-800 animate-in slide-in-from-top-2">
-                    <div className="max-h-40 overflow-y-auto mb-3 space-y-2 custom-scrollbar pr-1">
+                  <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 animate-in slide-in-from-top-2">
+                    <div className="max-h-40 overflow-y-auto mb-3 space-y-2 custom-scrollbar">
                       {incident.notes?.map((note) => (
                         <div
                           key={note.id}
-                          className="bg-neutral-50 dark:bg-neutral-800 p-2 rounded-lg text-[10px] border border-neutral-100 dark:border-neutral-700"
+                          className="bg-neutral-50 dark:bg-neutral-800 p-2 rounded-lg text-[10px] border"
                         >
                           <div className="font-black text-wood uppercase mb-1">
                             {note.author_name}
                           </div>
-                          <p className="text-neutral-700 dark:text-neutral-300 font-medium">
+                          <p className="text-neutral-700 dark:text-neutral-300">
                             {note.content}
                           </p>
                         </div>
                       )) || (
-                        <p className="text-[10px] text-neutral-400 text-center italic">
+                        <p className="text-[10px] text-neutral-400 italic">
                           Sin notas.
                         </p>
                       )}
@@ -319,12 +322,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         type="text"
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
-                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
-                        placeholder="Escribir nota..."
+                        className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none"
+                        placeholder="Añadir nota..."
                       />
                       <button
                         onClick={() => handleAddNote(incident.id)}
-                        className="bg-wood text-white p-2 rounded-lg active:scale-90 transition-transform"
+                        className="bg-wood text-white p-2 rounded-lg"
                       >
                         <Send size={14} />
                       </button>
@@ -333,7 +336,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 mt-auto">
                 {(userRole === "admin" || userRole === "supervisor") && (
                   <>
                     {!isClosed && (
@@ -343,7 +346,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md"
+                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase"
                           >
                             Procesar
                           </button>
@@ -353,7 +356,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md",
+                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -366,7 +369,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         onClick={() =>
                           onStatusChange(incident.id, "en_proceso")
                         }
-                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase tracking-widest shadow-sm hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-all"
+                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 py-2.5 rounded-xl font-black uppercase"
                       >
                         <RefreshCw size={14} /> Reabrir
                       </button>
@@ -374,12 +377,11 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar incidencia?"))
-                            onDelete(incident.id);
+                          if (confirm("¿Borrar?")) onDelete(incident.id);
                         }}
-                        className="flex items-center justify-center gap-2 text-[9px] text-red-500 hover:text-red-700 py-1 font-black uppercase tracking-tighter transition-colors mt-1"
+                        className="text-[9px] text-red-500 font-black uppercase mt-1"
                       >
-                        <Trash2 size={12} /> Eliminar
+                        <Trash2 size={12} className="inline mr-1" /> Eliminar
                       </button>
                     )}
                   </>
@@ -390,68 +392,121 @@ const IncidentList: React.FC<IncidentListProps> = ({
         );
       })}
 
-      {/* --- VISUALIZADOR MULTIMEDIA PRO --- */}
-      {previewMedia && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-xl animate-in fade-in duration-300"
-          onClick={() => setPreviewMedia(null)}
-        >
-          {/* Botones de acción del Modal */}
-          <div className="absolute top-4 right-4 flex gap-4 z-[110]">
-            <a
-              href={previewMedia.url}
-              download={previewMedia.name || "archivo"}
-              onClick={(e) => e.stopPropagation()}
-              className="text-white/70 hover:text-white p-2 bg-white/10 rounded-full transition-all"
-              title="Descargar"
-            >
-              <Download size={24} />
-            </a>
-            <button
-              className="text-white/70 hover:text-white p-2 bg-white/10 rounded-full transition-all"
-              onClick={() => setPreviewMedia(null)}
-            >
-              <X size={24} />
-            </button>
-          </div>
-
+      {/* --- CARRUSEL MULTIMEDIA PREMIUM --- */}
+      {galleryItems && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+          {/* Fondo desenfocado */}
           <div
-            className="relative w-full max-w-5xl h-full flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {previewMedia.type === "image" ? (
-              <img
-                src={previewMedia.url}
-                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-500"
-                alt="Vista ampliada"
-              />
-            ) : (
-              <div className="relative w-full flex justify-center items-center">
-                {isVideoLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <Loader2 className="animate-spin text-wood" size={48} />
-                  </div>
-                )}
-                <video
-                  src={previewMedia.url}
-                  controls
-                  autoPlay
-                  onCanPlay={() => setIsVideoLoading(false)}
-                  className="max-w-full max-h-[85vh] rounded-xl shadow-2xl border border-white/10"
-                  playsInline // IMPORTANTE para móviles
-                >
-                  Tu navegador no soporta el formato de vídeo.
-                </video>
-              </div>
+            className="absolute inset-0 bg-black/90 backdrop-blur-2xl"
+            onClick={() => setGalleryItems(null)}
+          />
+
+          {/* Controles superiores */}
+          <div className="absolute top-6 left-0 right-0 px-6 flex justify-between items-center z-[110]">
+            <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur-md border border-white/10">
+              <span className="text-white font-black text-sm tracking-widest">
+                {currentIndex + 1} / {galleryItems.length}
+              </span>
+            </div>
+            <div className="flex gap-3">
+              <a
+                href={galleryItems[currentIndex].url}
+                download
+                className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
+              >
+                <Download size={20} />
+              </a>
+              <button
+                onClick={() => setGalleryItems(null)}
+                className="p-3 bg-white/10 hover:bg-red-500 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Área del carrusel */}
+          <div className="relative w-full max-w-6xl h-full flex items-center justify-center z-[105]">
+            {/* Flecha Izquierda */}
+            {galleryItems.length > 1 && (
+              <button
+                onClick={handlePrev}
+                className="absolute left-0 md:-left-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm"
+              >
+                <ChevronLeft size={48} />
+              </button>
             )}
 
-            {/* Nombre del archivo en la parte inferior */}
-            {previewMedia.name && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-xs font-medium bg-black/40 px-4 py-2 rounded-full backdrop-blur-md">
-                {previewMedia.name}
-              </div>
+            {/* Contenido Central */}
+            <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+              {galleryItems[currentIndex].type === "image" ? (
+                <img
+                  src={galleryItems[currentIndex].url}
+                  className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5"
+                  alt=""
+                />
+              ) : (
+                <div className="relative w-full max-w-4xl max-h-[75vh] flex justify-center items-center">
+                  {isVideoLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                      <Loader2 className="animate-spin text-wood" size={64} />
+                    </div>
+                  )}
+                  <video
+                    key={galleryItems[currentIndex].url} // Forzar recarga al cambiar vídeo
+                    src={galleryItems[currentIndex].url}
+                    controls
+                    autoPlay
+                    onCanPlay={() => setIsVideoLoading(false)}
+                    className="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-white/10"
+                    playsInline
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Flecha Derecha */}
+            {galleryItems.length > 1 && (
+              <button
+                onClick={handleNext}
+                className="absolute right-0 md:-right-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm"
+              >
+                <ChevronRight size={48} />
+              </button>
             )}
           </div>
+
+          {/* Miniaturas inferiores para navegación rápida (opcional, muy estético) */}
+          {galleryItems.length > 1 && (
+            <div className="absolute bottom-10 flex gap-2 overflow-x-auto p-2 max-w-md scrollbar-hide z-[110]">
+              {galleryItems.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setCurrentIndex(i);
+                    setIsVideoLoading(true);
+                  }}
+                  className={clsx(
+                    "w-12 h-12 rounded-lg border-2 overflow-hidden transition-all shrink-0",
+                    currentIndex === i
+                      ? "border-wood scale-110 shadow-lg"
+                      : "border-transparent opacity-40 hover:opacity-100",
+                  )}
+                >
+                  {item.type === "image" ? (
+                    <img
+                      src={item.url}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="bg-neutral-700 w-full h-full flex items-center justify-center">
+                      <PlayCircle size={16} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
