@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Film,
+  AlertTriangle,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { formatDistanceToNow, format } from "date-fns";
@@ -54,6 +55,13 @@ const statusColors = {
     "text-green-900 bg-green-200 border-green-400 dark:text-green-200 dark:bg-green-900/50 dark:border-green-700",
   rechazado:
     "text-red-900 bg-red-200 border-red-400 dark:text-red-200 dark:bg-red-900/50 dark:border-red-700",
+};
+
+const priorityColors = {
+  baja: "text-gray-500 bg-gray-100 border-gray-200",
+  media: "text-blue-600 bg-blue-50 border-blue-100",
+  alta: "text-orange-600 bg-orange-50 border-orange-100",
+  urgente: "text-red-600 bg-red-50 border-red-200 font-bold animate-pulse",
 };
 
 const getCategoryStyle = (cat: string) => {
@@ -112,33 +120,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!galleryItems) return;
-      if (e.key === "Escape") setGalleryItems(null);
-      if (e.key === "ArrowRight") handleNext();
-      if (e.key === "ArrowLeft") handlePrev();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [galleryItems, currentIndex]);
-
-  const handleNext = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!galleryItems) return;
-    setIsVideoLoading(true);
-    setCurrentIndex((prev) => (prev + 1) % galleryItems.length);
-  };
-
-  const handlePrev = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!galleryItems) return;
-    setIsVideoLoading(true);
-    setCurrentIndex(
-      (prev) => (prev - 1 + galleryItems.length) % galleryItems.length,
-    );
-  };
-
   const handleAddNote = async (incidentId: string) => {
     if (!newNote.trim()) return;
     if (editingNoteId) {
@@ -191,6 +172,20 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 >
                   {incident.status.replace("_", " ")}
                 </span>
+
+                {viewConfig?.showPriority && incident.priority && (
+                  <span
+                    className={clsx(
+                      "px-2 py-0.5 text-[9px] rounded border flex items-center gap-1 uppercase font-bold",
+                      priorityColors[
+                        incident.priority as keyof typeof priorityColors
+                      ],
+                    )}
+                  >
+                    <AlertTriangle size={10} /> {incident.priority}
+                  </span>
+                )}
+
                 {viewConfig?.showCategory && (
                   <span
                     className={clsx(
@@ -201,6 +196,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {catStyle.icon} {incident.category || "General"}
                   </span>
                 )}
+
                 {canEditIncident && (
                   <button
                     onClick={() => onEdit(incident)}
@@ -211,7 +207,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 )}
               </div>
 
-              <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 leading-tight uppercase tracking-tight">
+              <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-100 mb-2 uppercase tracking-tight">
                 {incident.title}
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 text-sm font-medium mb-4">
@@ -239,10 +235,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       ) : (
                         <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-900 group-hover:bg-neutral-200 transition-colors">
                           <PlayCircle size={32} className="text-wood" />
-                          <Film
-                            size={12}
-                            className="absolute bottom-1 right-1 text-white/50"
-                          />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
@@ -280,7 +272,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                               <span className="text-[9px] text-neutral-400">
                                 {format(
                                   new Date(note.created_at),
-                                  "dd/MM/yyyy HH:mm",
+                                  "dd/MM HH:mm",
                                   { locale: es },
                                 )}
                               </span>
@@ -318,7 +310,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 dark:text-neutral-500 font-black uppercase tracking-widest mt-auto pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 font-black uppercase tracking-widest mt-auto pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig?.showLocation && (
                   <div className="flex items-center gap-1">
                     <MapPin size={14} />
@@ -338,8 +330,8 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   (userRole === "admin" || userRole === "supervisor") && (
                     <div className="flex items-center gap-1 text-wood">
                       <User size={14} />
-                      {incident.user_name || "Anónimo"}{" "}
-                      {incident.user_house ? `(${incident.user_house})` : ""}
+                      {incident.user_name || "Anónimo"} (
+                      {incident.user_house || "S/N"})
                     </div>
                   )}
               </div>
@@ -371,7 +363,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       className="w-full rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 min-h-[80px] mb-2"
-                      placeholder="Escribir nota..."
+                      placeholder="Escribir..."
                     />
                     <div className="flex gap-1">
                       {editingNoteId && (
@@ -407,7 +399,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase"
+                            className="text-[9px] bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase transition-all hover:scale-105 active:scale-95"
                           >
                             Procesar
                           </button>
@@ -417,7 +409,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase",
+                            "text-[9px] bg-green-600 text-white py-2.5 rounded-xl font-black uppercase transition-all hover:scale-105 active:scale-95",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -430,7 +422,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         onClick={() =>
                           onStatusChange(incident.id, "en_proceso")
                         }
-                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase tracking-widest"
+                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 py-2.5 rounded-xl font-black uppercase tracking-widest"
                       >
                         <RefreshCw size={14} /> Reabrir
                       </button>
@@ -438,7 +430,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar incidencia definitivamente?"))
+                          if (confirm("¿Borrar incidencia?"))
                             onDelete(incident.id);
                         }}
                         className="text-[9px] text-red-500 font-black uppercase mt-1 transition-colors hover:text-red-700 flex items-center justify-center gap-1"
@@ -454,6 +446,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
         );
       })}
 
+      {/* CARRUSEL MULTIMEDIA */}
       {galleryItems && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
           <div
@@ -483,7 +476,14 @@ const IncidentList: React.FC<IncidentListProps> = ({
           <div className="relative w-full max-w-6xl h-full flex items-center justify-center z-[105]">
             {galleryItems.length > 1 && (
               <button
-                onClick={handlePrev}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex(
+                    (currentIndex - 1 + galleryItems.length) %
+                      galleryItems.length,
+                  );
+                  setIsVideoLoading(true);
+                }}
                 className="absolute left-0 md:-left-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full"
               >
                 <ChevronLeft size={48} />
@@ -514,59 +514,23 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     playsInline
                     onCanPlay={() => setIsVideoLoading(false)}
                     className="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-white/10 bg-black"
-                  >
-                    <source
-                      src={galleryItems[currentIndex].url}
-                      type="video/mp4"
-                    />
-                    <source
-                      src={galleryItems[currentIndex].url}
-                      type="video/quicktime"
-                    />
-                  </video>
+                  />
                 </div>
               )}
             </div>
             {galleryItems.length > 1 && (
               <button
-                onClick={handleNext}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex((currentIndex + 1) % galleryItems.length);
+                  setIsVideoLoading(true);
+                }}
                 className="absolute right-0 md:-right-16 p-4 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full"
               >
                 <ChevronRight size={48} />
               </button>
             )}
           </div>
-          {galleryItems.length > 1 && (
-            <div className="absolute bottom-10 flex gap-2 overflow-x-auto p-2 max-w-md scrollbar-hide z-[110]">
-              {galleryItems.map((item, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentIndex(i);
-                    setIsVideoLoading(true);
-                  }}
-                  className={clsx(
-                    "w-12 h-12 rounded-lg border-2 overflow-hidden transition-all shrink-0",
-                    currentIndex === i
-                      ? "border-wood scale-110 shadow-lg"
-                      : "border-transparent opacity-40 hover:opacity-100",
-                  )}
-                >
-                  {item.type === "image" ? (
-                    <img
-                      src={item.url}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="bg-neutral-700 w-full h-full flex items-center justify-center">
-                      <PlayCircle size={16} className="text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

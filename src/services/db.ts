@@ -353,33 +353,62 @@ export const dbUpdateIncident = async (
 };
 
 export const dbUpdateNote = async (
+  incidentId: string,
   noteId: string,
   newContent: string,
 ): Promise<DataResponse<boolean>> => {
   if (MODO_PRUEBA) return { data: true, error: null };
   if (!supabase) return { data: false, error: "No connection" };
 
-  // 1. Buscamos la incidencia que contiene la nota
-  const { data: incident } = await supabase
+  // 1. Obtenemos las notas actuales de esa incidencia específica
+  const { data: incident, error: fetchError } = await supabase
     .from("incidents")
-    .select("id, notes")
-    .contains("notes", [{ id: noteId }])
+    .select("notes")
+    .eq("id", incidentId)
     .single();
 
-  if (!incident) return { data: false, error: "No se encontró la nota." };
+  if (fetchError || !incident)
+    return { data: false, error: "No se encontró la incidencia." };
 
-  // 2. Actualizamos el texto de la nota dentro del array
-  const updatedNotes = incident.notes.map((n: any) =>
+  // 2. Actualizamos la nota específica dentro del array
+  const updatedNotes = (incident.notes || []).map((n: any) =>
     n.id === noteId
       ? { ...n, content: newContent, updated_at: new Date().toISOString() }
       : n,
   );
 
-  // 3. Guardamos el array de notas actualizado
+  // 3. Guardamos el array completo de vuelta
+  const { error: updateError } = await supabase
+    .from("incidents")
+    .update({ notes: updatedNotes })
+    .eq("id", incidentId);
+
+  return { data: !updateError, error: updateError?.message || null };
+};
+
+export const dbDeleteNote = async (
+  incidentId: string,
+  noteId: string,
+): Promise<DataResponse<boolean>> => {
+  if (MODO_PRUEBA) return { data: true, error: null };
+  if (!supabase) return { data: false, error: "No connection" };
+
+  const { data: incident } = await supabase
+    .from("incidents")
+    .select("notes")
+    .eq("id", incidentId)
+    .single();
+
+  if (!incident) return { data: false, error: "No se encontró la incidencia." };
+
+  const updatedNotes = (incident.notes || []).filter(
+    (n: any) => n.id !== noteId,
+  );
+
   const { error } = await supabase
     .from("incidents")
     .update({ notes: updatedNotes })
-    .eq("id", incident.id);
+    .eq("id", incidentId);
 
   return { data: !error, error: error?.message || null };
 };
