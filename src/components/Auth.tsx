@@ -3,12 +3,10 @@ import { MODO_PRUEBA } from "../config";
 import { dbLogin, dbCreateUser, dbGetAppConfig } from "../services/db";
 import { User, UserFieldConfig } from "../types";
 import {
-  ShieldCheck,
   User as UserIcon,
   Hammer,
   AlertTriangle,
   X,
-  Mail,
   Send,
   CheckCircle,
   Lock,
@@ -23,22 +21,21 @@ interface AuthProps {
 }
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
-  // Login States
   const [emailOrUser, setEmailOrUser] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal States
+  // Estados Modales
   const [showForgotPwd, setShowForgotPwd] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
 
-  // Register States
+  // Registro
   const [regValues, setRegValues] = useState<Record<string, string>>({});
   const [fieldsConfig, setFieldsConfig] = useState<UserFieldConfig[]>([]);
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
 
-  // Forgot Pwd State
+  // Recuperar Contraseña
   const [resetEmail, setResetEmail] = useState("");
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
 
@@ -74,7 +71,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
 
-    // Validar campos obligatorios manuales
     if (!regValues.full_name || !regValues.house_number) {
       setError("Por favor rellena Nombre y Nº de Casa");
       setLoading(false);
@@ -85,14 +81,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       email: regValues.email,
       username: regValues.username,
       password: regValues.password,
-      full_name: regValues.full_name, // CAMPO FIJO AÑADIDO
-      house_number: regValues.house_number, // CAMPO FIJO AÑADIDO
+      full_name: regValues.full_name,
+      house_number: regValues.house_number,
       role: "user",
       receive_emails: true,
       custom_fields: {},
     };
 
-    // Campos extra dinámicos
     fieldsConfig.forEach((f) => {
       if (!f.isSystem && regValues[f.key]) {
         newUser.custom_fields[f.key] = regValues[f.key];
@@ -112,21 +107,35 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         setShowRegister(false);
         setRegSuccess(null);
         setRegValues({});
-      }, 3000);
+      }, 4000);
     }
+  };
+
+  const handleForgotPwd = (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetSuccess(
+      `Si existe una cuenta asociada a ${resetEmail}, recibirás un correo.`,
+    );
+    setTimeout(() => {
+      setShowForgotPwd(false);
+      setResetSuccess(null);
+      setResetEmail("");
+    }, 3000);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      {/* Elementos decorativos de fondo */}
       <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-wood to-wood-hover"></div>
 
       <div className="bg-card w-full max-w-md p-8 rounded-xl shadow-2xl border-t-4 border-wood relative z-10 card animate-in fade-in zoom-in duration-500">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="bg-wood/10 p-4 rounded-full ring-1 ring-wood/20">
-              <ShieldCheck size={48} className="text-wood" />
-            </div>
+            {/* --- AQUI VA TU LOGO --- */}
+            <img
+              src="/logo_nuevo_letras_blancas-removebg-preview.png"
+              alt="Logo Comunidad"
+              className="h-24 w-auto object-contain mx-auto"
+            />
           </div>
           <h1 className="text-3xl font-black text-txt-primary mb-2 tracking-tight">
             Comunidad 38
@@ -188,6 +197,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 required
               />
             </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowForgotPwd(true)}
+                className="text-xs text-wood hover:underline font-medium"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
           </div>
 
           <button
@@ -218,7 +236,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
       <AccessibilityWidget />
 
-      {/* MODAL DE REGISTRO */}
+      {/* MODAL: REGISTRO */}
       {showRegister && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-neutral-800 border border-neutral-700 w-full max-w-md rounded-lg shadow-2xl p-6 relative my-8">
@@ -228,9 +246,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             >
               <X size={20} />
             </button>
-
             <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
-              <ShieldCheck className="text-wood" /> Registro Vecinal
+              Registro Vecinal
             </h2>
 
             {regSuccess ? (
@@ -247,7 +264,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             ) : (
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4">
-                  {/* CAMPO: EMAIL */}
                   <div className="space-y-1">
                     <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
                       Email
@@ -269,8 +285,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                       />
                     </div>
                   </div>
-
-                  {/* CAMPO: USUARIO */}
                   <div className="space-y-1">
                     <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
                       Usuario
@@ -295,8 +309,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                       />
                     </div>
                   </div>
-
-                  {/* CAMPO: CONTRASEÑA */}
                   <div className="space-y-1">
                     <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
                       Contraseña
@@ -321,8 +333,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                       />
                     </div>
                   </div>
-
-                  {/* CAMPO: NOMBRE COMPLETO (AÑADIDO MANUALMENTE) */}
                   <div className="space-y-1">
                     <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
                       Nombre Completo
@@ -347,8 +357,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                       />
                     </div>
                   </div>
-
-                  {/* CAMPO: CASA/PISO (AÑADIDO MANUALMENTE) */}
                   <div className="space-y-1">
                     <label className="text-xs text-neutral-400 uppercase font-bold ml-1">
                       Nº Casa / Piso
@@ -374,7 +382,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     </div>
                   </div>
                 </div>
-
                 <button
                   type="submit"
                   disabled={loading}
@@ -382,6 +389,49 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 >
                   <Send size={16} />{" "}
                   {loading ? "Enviando..." : "Enviar Solicitud"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RECUPERAR PASSWORD */}
+      {showForgotPwd && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-neutral-800 border border-neutral-700 w-full max-w-sm rounded-lg shadow-2xl p-6 relative">
+            <button
+              onClick={() => setShowForgotPwd(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-bold text-white mb-2">
+              Recuperar Contraseña
+            </h2>
+            <p className="text-neutral-400 text-sm mb-4">
+              Ingresa tu email y te enviaremos instrucciones.
+            </p>
+
+            {resetSuccess ? (
+              <div className="bg-green-900/30 border border-green-600 text-green-200 p-3 rounded text-sm flex items-center gap-2">
+                <CheckCircle size={16} /> {resetSuccess}
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPwd} className="space-y-4">
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-600 rounded p-2 text-white focus:border-wood"
+                  placeholder="tu@email.com"
+                />
+                <button
+                  type="submit"
+                  className="w-full bg-wood hover:bg-wood-hover text-white py-2 rounded font-bold"
+                >
+                  Enviar
                 </button>
               </form>
             )}

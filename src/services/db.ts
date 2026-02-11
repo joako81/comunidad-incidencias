@@ -11,7 +11,6 @@ import {
 import { MOCK_INCIDENTS, MOCK_USERS } from "./mockData";
 
 const DEFAULT_PENDING_MSG = "Tu cuenta está pendiente de aprobación.";
-
 const DEFAULT_CONFIG: AppConfig = {
   categories: DEFAULT_CATEGORIES,
   sortOptions: [],
@@ -37,10 +36,9 @@ export const dbLogin = async (
     if (!supabase)
       return {
         data: null,
-        error: "Error de conexión: Verifica las claves en Netlify",
+        error: "Error de conexión: Revisa claves en Netlify",
       };
 
-    // 1. Login en Auth
     const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: identifier,
       password: password || "",
@@ -50,24 +48,20 @@ export const dbLogin = async (
       return { data: null, error: "Usuario o contraseña incorrectos." };
     if (!authData.user) return { data: null, error: "No se pudo autenticar." };
 
-    // 2. Obtener Perfil
+    // Intentamos leer el perfil
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", authData.user.id)
       .single();
 
-    // 3. Verificaciones de seguridad
     if (profileError || !profile) {
-      console.error(
-        "Login Error: Usuario Auth existe pero no tiene Perfil.",
-        profileError,
-      );
+      // Si falla la lectura, suele ser por RLS (Política de seguridad)
+      console.error("Error perfil:", profileError);
       await supabase.auth.signOut();
       return {
         data: null,
-        error:
-          "Tu usuario no tiene ficha de vecino. Contacta al administrador.",
+        error: "Error de permisos: No se puede leer tu perfil de vecino.",
       };
     }
 
@@ -98,16 +92,15 @@ export const dbCreateUser = async (
   } else {
     if (!supabase) return { data: null, error: "Error de conexión" };
 
-    // --- CORRECCIÓN CRÍTICA APLICADA AQUÍ ---
-    // Ahora sí enviamos los metadatos (nombre, casa) para que el Trigger los lea
+    // AQUÍ ESTÁ LA CORRECCIÓN CLAVE: Enviamos options.data
     const { data, error } = await supabase.auth.signUp({
       email: user.email || "",
       password: user.password || "",
       options: {
         data: {
           username: user.username,
-          full_name: user.full_name, // IMPORTANTE
-          house_number: user.house_number, // IMPORTANTE
+          full_name: user.full_name, // <--- IMPORTANTE
+          house_number: user.house_number, // <--- IMPORTANTE
         },
       },
     });
@@ -219,15 +212,12 @@ export const dbAddNote = async (
   content: string,
   authorName: string,
 ): Promise<DataResponse<IncidentNote>> => {
-  if (MODO_PRUEBA) return { data: null, error: null };
   if (!supabase) return { data: null, error: "No connection" };
-
   const { data: inc } = await supabase
     .from("incidents")
     .select("notes")
     .eq("id", incidentId)
     .single();
-
   const currentNotes = inc?.notes || [];
   const newNote = {
     id: `n-${Date.now()}`,
@@ -235,12 +225,10 @@ export const dbAddNote = async (
     author_name: authorName,
     created_at: new Date().toISOString(),
   };
-
   const { error } = await supabase
     .from("incidents")
     .update({ notes: [...currentNotes, newNote] })
     .eq("id", incidentId);
-
   return { data: newNote, error: error?.message || null };
 };
 
@@ -271,31 +259,15 @@ export const dbApproveUser = async (
   approve: boolean,
 ): Promise<DataResponse<boolean>> => {
   if (!supabase) return { data: false, error: "No connection" };
-  if (approve) {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ status: "active" })
-      .eq("id", userId);
-    return { data: !error, error: error?.message || null };
-  } else {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ status: "rejected" })
-      .eq("id", userId);
-    return { data: !error, error: error?.message || null };
-  }
-};
-
-export const dbSendBatchEmail = async (
-  ids: string[],
-  msg: string,
-): Promise<DataResponse<boolean>> => {
-  console.log("Simulando envío de email:", ids);
-  return { data: true, error: null };
+  const status = approve ? "active" : "rejected";
+  const { error } = await supabase
+    .from("profiles")
+    .update({ status })
+    .eq("id", userId);
+  return { data: !error, error: error?.message || null };
 };
 
 // --- CONFIG ---
-
 export const dbGetAppConfig = async (): Promise<AppConfig> => {
   if (MODO_PRUEBA) return DEFAULT_CONFIG;
   if (!supabase) return DEFAULT_CONFIG;
@@ -331,5 +303,9 @@ export const dbAddCategory = async (
     config.categories.push(cat);
     return dbSaveAppConfig(config);
   }
+  return { data: true, error: null };
+};
+
+export const dbSendBatchEmail = async (ids: string[], msg: string) => {
   return { data: true, error: null };
 };
