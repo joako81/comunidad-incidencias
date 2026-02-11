@@ -57,26 +57,55 @@ export const dbLogin = async (
 };
 
 export const dbCreateUser = async (
-  user: Omit<User, "id" | "status">,
+  user: Partial<User>,
 ): Promise<DataResponse<User>> => {
-  if (MODO_PRUEBA)
-    return {
-      data: { ...user, id: "u-test", status: "pending" } as User,
-      error: null,
+  if (MODO_PRUEBA) {
+    const newUser = {
+      ...user,
+      id: `u${Date.now()}`,
+      status: "pending" as const,
     };
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || "[]");
+    stored.push(newUser);
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(stored));
+    return { data: newUser as User, error: null };
+  } else {
+    if (!supabase) return { data: null, error: "Error de conexión" };
 
-  if (!supabase) return { data: null, error: "No connection" };
-  const { data, error } = await supabase.auth.signUp({
-    email: user.email,
-    password: user.password,
-  });
-  if (error) return { data: null, error: error.message };
+    // 1. REGISTRO EN SUPABASE AUTH (Con Metadatos para el Trigger)
+    const { data, error } = await supabase.auth.signUp({
+      email: user.email || "",
+      password: user.password || "",
+      options: {
+        data: {
+          username: user.username,
+          full_name: user.full_name, // IMPORTANTE: Enviamos esto para el Trigger
+          house_number: user.house_number, // IMPORTANTE: Enviamos esto para el Trigger
+        },
+      },
+    });
 
-  // El perfil se crea automáticamente por trigger en Supabase, o aquí si fuera manual
-  return {
-    data: { ...user, id: data.user!.id, status: "pending" } as User,
-    error: null,
-  };
+    if (error) return { data: null, error: error.message };
+
+    // Si el Trigger de SQL funciona bien, el perfil ya se habrá creado solo.
+    // Devolvemos los datos básicos simulando éxito.
+    if (data.user) {
+      return {
+        data: {
+          id: data.user.id,
+          email: user.email!,
+          role: "user",
+          status: "pending",
+          username: user.username!,
+          full_name: user.full_name,
+          house_number: user.house_number,
+        } as User,
+        error: null,
+      };
+    }
+
+    return { data: null, error: "No se pudo crear el usuario." };
+  }
 };
 
 export const dbGetSession = async (): Promise<User | null> => {
