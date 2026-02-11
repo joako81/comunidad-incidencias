@@ -286,3 +286,15 @@ export const dbAddCategory = async (
   }
   return { data: true, error: null };
 };
+
+export const dbGetAllUsers = async (): Promise<User[]> => {
+  if (MODO_PRUEBA) return MOCK_USERS;
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("status", "active");
+
+  return (data as User[]) || [];
+};
