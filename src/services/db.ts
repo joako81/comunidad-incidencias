@@ -7,8 +7,6 @@ import {
   IncidentStatus,
   IncidentNote,
   AppConfig,
-  SortOptionConfig,
-  UserFieldConfig,
 } from "../types";
 import { MOCK_INCIDENTS, MOCK_USERS } from "./mockData";
 
@@ -36,22 +34,53 @@ export const dbLogin = async (
     if (user) return { data: user, error: null };
     return { data: null, error: "Credenciales inválidas (Modo Prueba)" };
   } else {
-    if (!supabase) return { data: null, error: "Error de conexión" };
+    if (!supabase)
+      return {
+        data: null,
+        error: "Error de conexión: Verifica las claves en Netlify",
+      };
+
+    // 1. Login en Auth
     const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: identifier,
       password: password || "",
     });
-    if (error) return { data: null, error: error.message };
 
-    const { data: profile } = await supabase
+    if (error)
+      return { data: null, error: "Usuario o contraseña incorrectos." };
+    if (!authData.user) return { data: null, error: "No se pudo autenticar." };
+
+    // 2. Obtener Perfil
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", authData.user.id)
       .single();
-    if (profile?.status === "pending") {
+
+    // 3. Verificaciones de seguridad
+    if (profileError || !profile) {
+      console.error(
+        "Login Error: Usuario Auth existe pero no tiene Perfil.",
+        profileError,
+      );
       await supabase.auth.signOut();
-      return { data: null, error: "Cuenta pendiente de aprobación." };
+      return {
+        data: null,
+        error:
+          "Tu usuario no tiene ficha de vecino. Contacta al administrador.",
+      };
     }
+
+    if (profile.status === "pending") {
+      await supabase.auth.signOut();
+      return { data: null, error: "Tu cuenta está pendiente de aprobación." };
+    }
+
+    if (profile.status === "rejected") {
+      await supabase.auth.signOut();
+      return { data: null, error: "Tu solicitud ha sido rechazada." };
+    }
+
     return { data: profile as User, error: null };
   }
 };
@@ -65,46 +94,34 @@ export const dbCreateUser = async (
       id: `u${Date.now()}`,
       status: "pending" as const,
     };
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || "[]");
-    stored.push(newUser);
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(stored));
     return { data: newUser as User, error: null };
   } else {
     if (!supabase) return { data: null, error: "Error de conexión" };
 
-    // 1. REGISTRO EN SUPABASE AUTH (Con Metadatos para el Trigger)
+    // --- CORRECCIÓN CRÍTICA APLICADA AQUÍ ---
+    // Ahora sí enviamos los metadatos (nombre, casa) para que el Trigger los lea
     const { data, error } = await supabase.auth.signUp({
       email: user.email || "",
       password: user.password || "",
       options: {
         data: {
           username: user.username,
-          full_name: user.full_name, // IMPORTANTE: Enviamos esto para el Trigger
-          house_number: user.house_number, // IMPORTANTE: Enviamos esto para el Trigger
+          full_name: user.full_name, // IMPORTANTE
+          house_number: user.house_number, // IMPORTANTE
         },
       },
     });
 
     if (error) return { data: null, error: error.message };
 
-    // Si el Trigger de SQL funciona bien, el perfil ya se habrá creado solo.
-    // Devolvemos los datos básicos simulando éxito.
     if (data.user) {
       return {
-        data: {
-          id: data.user.id,
-          email: user.email!,
-          role: "user",
-          status: "pending",
-          username: user.username!,
-          full_name: user.full_name,
-          house_number: user.house_number,
-        } as User,
+        data: { ...user, id: data.user.id, status: "pending" } as User,
         error: null,
       };
     }
 
-    return { data: null, error: "No se pudo crear el usuario." };
+    return { data: null, error: "No se recibió respuesta del servidor." };
   }
 };
 
@@ -115,13 +132,16 @@ export const dbGetSession = async (): Promise<User | null> => {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session) return null;
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", session.user.id)
-    .single();
-  return data as User;
+
+  if (session?.user) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .single();
+    return data as User;
+  }
+  return null;
 };
 
 export const dbLogout = async () => {
@@ -133,7 +153,7 @@ export const dbUpdateUser = async (
   userId: string,
   data: Partial<User>,
 ): Promise<DataResponse<boolean>> => {
-  if (!supabase) return { data: true, error: null }; // En prueba no hacemos nada
+  if (!supabase) return { data: true, error: null };
   const { error } = await supabase
     .from("profiles")
     .update(data)
@@ -154,10 +174,11 @@ export const dbGetIncidents = async (): Promise<DataResponse<Incident[]>> => {
 };
 
 export const dbCreateIncident = async (
-  incident: Omit<Incident, "id" | "created_at" | "updated_at" | "notes">,
+  incident: Partial<Incident>,
 ): Promise<DataResponse<Incident>> => {
-  if (MODO_PRUEBA) return { data: null, error: null };
+  if (MODO_PRUEBA) return { data: incident as Incident, error: null };
   if (!supabase) return { data: null, error: "No connection" };
+
   const { data, error } = await supabase
     .from("incidents")
     .insert([
@@ -176,21 +197,19 @@ export const dbCreateIncident = async (
 export const dbUpdateIncidentStatus = async (
   id: string,
   status: IncidentStatus,
-): Promise<DataResponse<Incident>> => {
-  if (!supabase) return { data: null, error: "No connection" };
-  const { data, error } = await supabase
+): Promise<DataResponse<boolean>> => {
+  if (!supabase) return { data: true, error: null };
+  const { error } = await supabase
     .from("incidents")
-    .update({ status })
-    .eq("id", id)
-    .select()
-    .single();
-  return { data: data as Incident, error: error?.message || null };
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  return { data: !error, error: error?.message || null };
 };
 
 export const dbDeleteIncident = async (
   id: string,
 ): Promise<DataResponse<boolean>> => {
-  if (!supabase) return { data: null, error: "No connection" };
+  if (!supabase) return { data: true, error: null };
   const { error } = await supabase.from("incidents").delete().eq("id", id);
   return { data: !error, error: error?.message || null };
 };
@@ -200,24 +219,15 @@ export const dbAddNote = async (
   content: string,
   authorName: string,
 ): Promise<DataResponse<IncidentNote>> => {
-  if (MODO_PRUEBA)
-    return {
-      data: {
-        id: "n-1",
-        content,
-        author_name: authorName,
-        created_at: new Date().toISOString(),
-      },
-      error: null,
-    };
+  if (MODO_PRUEBA) return { data: null, error: null };
   if (!supabase) return { data: null, error: "No connection" };
 
-  // Obtener notas actuales
   const { data: inc } = await supabase
     .from("incidents")
     .select("notes")
     .eq("id", incidentId)
     .single();
+
   const currentNotes = inc?.notes || [];
   const newNote = {
     id: `n-${Date.now()}`,
@@ -230,39 +240,29 @@ export const dbAddNote = async (
     .from("incidents")
     .update({ notes: [...currentNotes, newNote] })
     .eq("id", incidentId);
+
   return { data: newNote, error: error?.message || null };
 };
 
-// --- ADMIN / USERS (Las funciones que te faltaban) ---
+// --- ADMIN / USERS ---
 
 export const dbGetPendingUsers = async (): Promise<User[]> => {
-  // DIAGNÓSTICO: Ver si está entrando aquí y en qué modo
-  console.log("--- BUSCANDO USUARIOS PENDIENTES ---");
-  console.log("Modo Prueba:", MODO_PRUEBA);
-
-  if (MODO_PRUEBA) {
-    console.log("Devolviendo array vacío por Modo Prueba");
-    return [];
-  }
-
-  if (!supabase) {
-    console.error("ERROR CRÍTICO: No hay conexión con Supabase");
-    return [];
-  }
-
-  // Traemos los perfiles con estado 'pending'
-  const { data, error } = await supabase
+  if (MODO_PRUEBA) return [];
+  if (!supabase) return [];
+  const { data } = await supabase
     .from("profiles")
     .select("*")
     .eq("status", "pending");
+  return (data as User[]) || [];
+};
 
-  if (error) {
-    console.error("ERROR SQL AL BUSCAR:", error.message);
-  } else {
-    console.log("RESULTADO SUPABASE:", data);
-    console.log("Usuarios encontrados:", data?.length || 0);
-  }
-
+export const dbGetAllUsers = async (): Promise<User[]> => {
+  if (MODO_PRUEBA) return MOCK_USERS;
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("status", "active");
   return (data as User[]) || [];
 };
 
@@ -278,8 +278,6 @@ export const dbApproveUser = async (
       .eq("id", userId);
     return { data: !error, error: error?.message || null };
   } else {
-    // En Supabase Auth no podemos borrar usuarios desde el cliente fácilmente sin una Edge Function,
-    // así que cambiamos el estado a 'rejected'
     const { error } = await supabase
       .from("profiles")
       .update({ status: "rejected" })
@@ -313,7 +311,6 @@ export const dbGetAppConfig = async (): Promise<AppConfig> => {
 export const dbSaveAppConfig = async (
   config: AppConfig,
 ): Promise<DataResponse<boolean>> => {
-  if (MODO_PRUEBA) return { data: true, error: null };
   if (!supabase) return { data: false, error: "No connection" };
   const { error } = await supabase
     .from("app_config")
@@ -335,16 +332,4 @@ export const dbAddCategory = async (
     return dbSaveAppConfig(config);
   }
   return { data: true, error: null };
-};
-
-export const dbGetAllUsers = async (): Promise<User[]> => {
-  if (MODO_PRUEBA) return MOCK_USERS;
-  if (!supabase) return [];
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("status", "active");
-
-  return (data as User[]) || [];
 };
