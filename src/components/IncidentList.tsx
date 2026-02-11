@@ -18,7 +18,7 @@ import {
   RefreshCw,
   Pencil,
   X,
-  Maximize2,
+  Maximize2, // <--- REPARADO: Importación añadida para evitar el ReferenceError
   Download,
   Loader2,
   ChevronLeft,
@@ -54,13 +54,6 @@ const statusColors = {
     "text-green-900 bg-green-200 border-green-400 dark:text-green-200 dark:bg-green-900/50 dark:border-green-700",
   rechazado:
     "text-red-900 bg-red-200 border-red-400 dark:text-red-200 dark:bg-red-900/50 dark:border-red-700",
-};
-
-const priorityColors = {
-  baja: "text-gray-600 dark:text-gray-400",
-  media: "text-blue-700 dark:text-blue-400",
-  alta: "text-orange-700 dark:text-orange-400",
-  urgente: "text-red-700 font-black dark:text-red-500",
 };
 
 const getCategoryStyle = (cat: string) => {
@@ -182,10 +175,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
           <div
             key={incident.id}
             className={clsx(
-              "bg-white dark:bg-card border-2 rounded-2xl overflow-hidden shadow-sm flex flex-col md:flex-row relative transition-all",
-              selectable && selectedIds.includes(incident.id)
-                ? "border-wood ring-2 ring-wood/20"
-                : "border-neutral-100 dark:border-neutral-800 hover:border-wood/40",
+              "bg-white dark:bg-card border-2 rounded-2xl overflow-hidden shadow-sm flex flex-col md:flex-row relative transition-all border-neutral-100 dark:border-neutral-800 hover:border-wood/40",
             )}
           >
             <div
@@ -306,7 +296,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                       expandedNotes === incident.id ? null : incident.id,
                     )
                   }
-                  className="text-[10px] flex items-center justify-between w-full bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-wood font-black uppercase tracking-widest hover:border-wood transition-all shadow-sm"
+                  className="text-[10px] flex items-center justify-between w-full bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-wood font-black uppercase shadow-sm"
                 >
                   <span className="flex items-center gap-2">
                     <MessageSquare size={14} /> Notas
@@ -316,7 +306,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </span>
                 </button>
                 {expandedNotes === incident.id && (
-                  <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 dark:border-neutral-800 animate-in slide-in-from-top-2">
+                  <div className="mt-3 bg-white dark:bg-neutral-900 rounded-xl p-3 border-2 border-neutral-100 animate-in slide-in-from-top-2">
                     <div className="max-h-40 overflow-y-auto mb-3 space-y-2 custom-scrollbar pr-1">
                       {incident.notes?.map((note) => (
                         <div
@@ -331,7 +321,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                           </p>
                         </div>
                       )) || (
-                        <p className="text-[10px] text-neutral-400 text-center italic">
+                        <p className="text-[10px] text-neutral-400 italic text-center">
                           Sin notas.
                         </p>
                       )}
@@ -342,11 +332,11 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
                         className="flex-grow rounded-lg text-[11px] p-2 bg-neutral-100 dark:bg-neutral-800 border-none outline-none text-neutral-900 dark:text-neutral-100"
-                        placeholder="Escribir nota..."
+                        placeholder="Añadir nota..."
                       />
                       <button
                         onClick={() => handleAddNote(incident.id)}
-                        className="bg-wood text-white p-2 rounded-lg active:scale-90 transition-transform"
+                        className="bg-wood text-white p-2 rounded-lg active:scale-95 transition-transform"
                       >
                         <Send size={14} />
                       </button>
@@ -365,7 +355,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onClick={() =>
                               onStatusChange(incident.id, "en_proceso")
                             }
-                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all"
+                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all"
                           >
                             Procesar
                           </button>
@@ -375,7 +365,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                             onStatusChange(incident.id, "resuelto")
                           }
                           className={clsx(
-                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase tracking-wider shadow-md transition-all",
+                            "text-[9px] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-black uppercase shadow-md transition-all",
                             incident.status !== "pendiente" && "col-span-2",
                           )}
                         >
@@ -388,7 +378,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
                         onClick={() =>
                           onStatusChange(incident.id, "en_proceso")
                         }
-                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase tracking-widest shadow-sm hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-all"
+                        className="flex items-center justify-center gap-2 text-[9px] bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 py-2.5 rounded-xl font-black uppercase transition-all"
                       >
                         <RefreshCw size={14} /> Reabrir
                       </button>
@@ -396,9 +386,10 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {userRole === "admin" && (
                       <button
                         onClick={() => {
-                          if (confirm("¿Borrar?")) onDelete(incident.id);
+                          if (confirm("¿Borrar incidencia?"))
+                            onDelete(incident.id);
                         }}
-                        className="text-[9px] text-red-500 hover:text-red-700 py-1 font-black uppercase tracking-tighter transition-colors mt-1"
+                        className="text-[9px] text-red-500 font-black uppercase mt-1 transition-colors hover:text-red-700"
                       >
                         <Trash2 size={12} className="inline mr-1" /> Eliminar
                       </button>
@@ -414,6 +405,7 @@ const IncidentList: React.FC<IncidentListProps> = ({
       {/* --- CARRUSEL MULTIMEDIA PREMIUM --- */}
       {galleryItems && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+          {/* Fondo desenfocado */}
           <div
             className="absolute inset-0 bg-black/95 backdrop-blur-2xl"
             onClick={() => setGalleryItems(null)}
@@ -471,14 +463,26 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     </div>
                   )}
                   <video
-                    key={galleryItems[currentIndex].url} // KEY CRÍTICA: Fuerza al navegador a recargar el reproductor
+                    key={galleryItems[currentIndex].url} // Forzar recarga al cambiar vídeo para iPhone/Android
                     src={galleryItems[currentIndex].url}
                     controls
                     autoPlay
-                    playsInline
+                    playsInline // Crítico para móviles
+                    preload="auto"
                     onCanPlay={() => setIsVideoLoading(false)}
                     className="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-white/10"
-                  />
+                  >
+                    <source
+                      src={galleryItems[currentIndex].url}
+                      type="video/mp4"
+                    />
+                    <source
+                      src={galleryItems[currentIndex].url}
+                      type="video/quicktime"
+                    />{" "}
+                    {/* Soporte .MOV iPhone */}
+                    Tu navegador no soporta el formato de vídeo.
+                  </video>
                 </div>
               )}
             </div>
