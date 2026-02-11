@@ -336,3 +336,18 @@ export const dbAddCategory = async (
 export const dbSendBatchEmail = async (ids: string[], msg: string) => {
   return { data: true, error: null };
 };
+
+export const dbUpdateIncident = async (
+  id: string,
+  updates: Partial<Incident>,
+): Promise<DataResponse<boolean>> => {
+  if (MODO_PRUEBA) return { data: true, error: null };
+  if (!supabase) return { data: false, error: "No connection" };
+
+  const { error } = await supabase
+    .from("incidents")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  return { data: !error, error: error?.message || null };
+};
