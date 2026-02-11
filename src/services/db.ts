@@ -236,12 +236,33 @@ export const dbAddNote = async (
 // --- ADMIN / USERS (Las funciones que te faltaban) ---
 
 export const dbGetPendingUsers = async (): Promise<User[]> => {
-  if (MODO_PRUEBA) return [];
-  if (!supabase) return [];
-  const { data } = await supabase
+  // DIAGNÓSTICO: Ver si está entrando aquí y en qué modo
+  console.log("--- BUSCANDO USUARIOS PENDIENTES ---");
+  console.log("Modo Prueba:", MODO_PRUEBA);
+
+  if (MODO_PRUEBA) {
+    console.log("Devolviendo array vacío por Modo Prueba");
+    return [];
+  }
+
+  if (!supabase) {
+    console.error("ERROR CRÍTICO: No hay conexión con Supabase");
+    return [];
+  }
+
+  // Traemos los perfiles con estado 'pending'
+  const { data, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("status", "pending");
+
+  if (error) {
+    console.error("ERROR SQL AL BUSCAR:", error.message);
+  } else {
+    console.log("RESULTADO SUPABASE:", data);
+    console.log("Usuarios encontrados:", data?.length || 0);
+  }
+
   return (data as User[]) || [];
 };
 
