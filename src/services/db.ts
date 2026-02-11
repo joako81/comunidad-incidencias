@@ -360,7 +360,7 @@ export const dbUpdateNote = async (
   if (MODO_PRUEBA) return { data: true, error: null };
   if (!supabase) return { data: false, error: "No connection" };
 
-  // 1. Obtenemos las notas actuales de esa incidencia específica
+  // 1. Obtener la incidencia específica para tener el array de notas actual
   const { data: incident, error: fetchError } = await supabase
     .from("incidents")
     .select("notes")
@@ -370,14 +370,14 @@ export const dbUpdateNote = async (
   if (fetchError || !incident)
     return { data: false, error: "No se encontró la incidencia." };
 
-  // 2. Actualizamos la nota específica dentro del array
+  // 2. Modificar la nota específica dentro del array
   const updatedNotes = (incident.notes || []).map((n: any) =>
     n.id === noteId
       ? { ...n, content: newContent, updated_at: new Date().toISOString() }
       : n,
   );
 
-  // 3. Guardamos el array completo de vuelta
+  // 3. Guardar el array completo actualizado
   const { error: updateError } = await supabase
     .from("incidents")
     .update({ notes: updatedNotes })
@@ -387,28 +387,31 @@ export const dbUpdateNote = async (
 };
 
 export const dbDeleteNote = async (
+  incidentId: string,
   noteId: string,
 ): Promise<DataResponse<boolean>> => {
   if (MODO_PRUEBA) return { data: true, error: null };
   if (!supabase) return { data: false, error: "No connection" };
 
-  // 1. Buscamos la incidencia
+  // 1. Obtener las notas actuales
   const { data: incident } = await supabase
     .from("incidents")
-    .select("id, notes")
-    .contains("notes", [{ id: noteId }])
+    .select("notes")
+    .eq("id", incidentId)
     .single();
 
-  if (!incident) return { data: false, error: "No se encontró la nota." };
+  if (!incident) return { data: false, error: "No se encontró la incidencia." };
 
-  // 2. Filtramos el array para quitar la nota
-  const updatedNotes = incident.notes.filter((n: any) => n.id !== noteId);
+  // 2. Filtrar para eliminar la nota
+  const updatedNotes = (incident.notes || []).filter(
+    (n: any) => n.id !== noteId,
+  );
 
-  // 3. Guardamos el nuevo array
+  // 3. Actualizar la base de datos
   const { error } = await supabase
     .from("incidents")
     .update({ notes: updatedNotes })
-    .eq("id", incident.id);
+    .eq("id", incidentId);
 
   return { data: !error, error: error?.message || null };
 };
