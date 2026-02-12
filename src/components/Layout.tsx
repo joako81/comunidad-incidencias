@@ -35,7 +35,6 @@ const Layout: React.FC<LayoutProps> = ({
   const [savingPref, setSavingPref] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // ESTADO PARA CONTROLAR EL LOGO: Si falla la carga, ponemos esto a true
   const [logoError, setLogoError] = useState(false);
 
   const navigate = useNavigate();
@@ -52,165 +51,174 @@ const Layout: React.FC<LayoutProps> = ({
       const interval = setInterval(checkPending, 5000);
       return () => clearInterval(interval);
     }
-  }, [user.role, canManageUsers]);
-
-  const handleLogout = async () => {
-    await dbLogout();
-    onLogout();
-  };
+  }, [canManageUsers]);
 
   const savePreferences = async () => {
     setSavingPref(true);
     await dbUpdateUser(user.id, { receive_emails: emailPref });
     setSavingPref(false);
     setShowProfile(false);
-    window.location.reload();
-  };
-
-  const handleNotificationClick = () => {
-    navigate("/");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div className="min-h-screen bg-background text-neutral-200 transition-colors duration-300">
-      {/* Navbar */}
-      <nav className="fixed top-0 w-full h-16 bg-neutral-900 border-b border-wood/20 z-40 px-4 flex items-center justify-between shadow-sm">
-        {/* --- ZONA LOGOTIPO (SOLUCIÓN ROBUSTA) --- */}
-        <div className="flex items-center gap-3">
-          {/* Lógica: Si NO hay error, muestra imagen. Si HAY error, muestra la V */}
-          {!logoError ? (
-            <img
-              src="/logo_nuevo_letras_blancas-removebg-preview.png"
-              alt="Logo Comunidad"
-              className="h-12 w-auto object-contain transition-all duration-300"
-              onError={() => {
-                console.log("Error cargando logo, mostrando respaldo");
-                setLogoError(true); // Esto fuerza a React a mostrar la V
-              }}
-            />
-          ) : (
-            // LOGOTIPO DE RESPALDO (La "V")
-            <div className="w-10 h-10 bg-wood rounded-md flex items-center justify-center font-bold text-white text-xl shadow-inner border border-white/20 animate-in fade-in">
-              V
-            </div>
-          )}
-
-          <span className="font-bold text-lg tracking-tight hidden sm:block text-neutral-200 leading-tight">
-            Valle del
-            <br />
-            Cabriel 38
-          </span>
-        </div>
-        {/* --- FIN ZONA LOGOTIPO --- */}
-
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex flex-col items-end mr-2 relative">
-            <span className="text-sm font-bold text-neutral-200">
-              {user.full_name || user.email}
-            </span>
-
-            {canManageUsers && pendingCount > 0 && (
-              <button
-                onClick={handleNotificationClick}
-                className="absolute -left-8 top-1/2 -translate-y-1/2 bg-red-600 hover:bg-red-700 text-white p-1 rounded-full shadow-lg transition-transform hover:scale-110 flex items-center justify-center"
-                title={`${pendingCount} solicitudes de acceso pendientes`}
-              >
-                <UserPlus size={14} className="animate-pulse" />
-                <span className="text-[10px] font-bold ml-0.5 mr-0.5">
-                  {pendingCount}
+    <div className="min-h-screen bg-background text-txt-primary flex flex-col font-sans transition-colors duration-300">
+      <nav className="bg-card border-b border-border-subtle sticky top-0 z-40 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-20">
+            <div className="flex items-center gap-4">
+              {!logoError ? (
+                <img
+                  src="/logo_cvc38.png"
+                  alt="Logo Comunidad"
+                  className="h-12 w-auto object-contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="h-12 w-12 bg-wood rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md">
+                  CVC
+                </div>
+              )}
+              <div className="hidden md:block h-8 w-px bg-border-subtle mx-2"></div>
+              <div>
+                <span className="text-xl font-black text-wood tracking-tight hidden md:block">
+                  Valle del Cabriel 38
                 </span>
+                <span className="text-xs text-txt-muted font-bold tracking-widest uppercase hidden md:block">
+                  Portal de Vecinos
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onNewIncident}
+                className="hidden md:flex bg-wood hover:bg-wood-hover text-white px-6 py-2.5 rounded-full font-bold transition-all shadow-md hover:shadow-lg active:scale-95 items-center gap-2"
+              >
+                <Plus size={20} strokeWidth={3} />
+                <span>NUEVA INCIDENCIA</span>
               </button>
-            )}
 
-            <span className="text-xs text-wood font-bold uppercase tracking-wider">
-              {user.role}
-            </span>
+              <button
+                onClick={onNewIncident}
+                className="md:hidden bg-wood text-white p-3 rounded-full shadow-lg"
+              >
+                <Plus size={24} />
+              </button>
+
+              {canManageUsers && (
+                <button
+                  onClick={onToggleUserView}
+                  className={`p-2.5 rounded-full transition-colors relative ${
+                    showUserView
+                      ? "bg-wood text-white"
+                      : "text-txt-muted hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  }`}
+                  title="Gestión de Usuarios"
+                >
+                  <UserCog size={24} />
+                  {pendingCount > 0 && (
+                    <span className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full animate-bounce">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfile(!showProfile)}
+                  className="flex items-center gap-3 p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border border-transparent hover:border-border-subtle"
+                >
+                  <div className="h-10 w-10 rounded-full bg-wood text-white flex items-center justify-center font-black text-lg shadow-sm">
+                    {user.username.charAt(0).toUpperCase()}
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
-
-          <button
-            onClick={() => setShowProfile(true)}
-            className="p-2 text-neutral-400 hover:text-white transition-colors"
-            title="Mi Perfil / Preferencias"
-          >
-            <UserCircle size={24} />
-          </button>
-
-          {canManageUsers && onToggleUserView && (
-            <button
-              onClick={onToggleUserView}
-              className={`p-2 rounded transition-colors border border-transparent ${showUserView ? "bg-neutral-800 text-white border-wood" : "text-neutral-400 hover:text-white"}`}
-              title="Gestión de Usuarios"
-            >
-              <UserCog size={24} />
-            </button>
-          )}
-
-          {!showUserView && user.status !== "pending" && (
-            <button
-              onClick={onNewIncident}
-              className="bg-wood hover:bg-wood-light text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-colors shadow-sm border border-wood-light"
-            >
-              <Plus size={18} />{" "}
-              <span className="hidden sm:inline">Nueva Incidencia</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleLogout}
-            className="p-2 text-neutral-400 hover:text-red-400 transition-colors"
-            title="Cerrar sesión"
-          >
-            <LogOut size={24} />
-          </button>
         </div>
       </nav>
 
-      <main className="pt-24 px-4 pb-20 max-w-7xl mx-auto">{children}</main>
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {children}
+      </main>
 
-      <AccessibilityWidget />
+      <div className="fixed bottom-6 left-6 z-50">
+        <AccessibilityWidget />
+      </div>
 
+      {/* PROFILE MODAL */}
       {showProfile && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-neutral-800 border-2 border-neutral-700 w-full max-w-sm rounded-lg shadow-2xl p-6 relative card">
+        <div className="fixed inset-0 z-50 flex items-start justify-end p-4 sm:p-6 mt-16 animate-in slide-in-from-right-10 fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-[1px]"
+            onClick={() => setShowProfile(false)}
+          ></div>
+          <div className="bg-neutral-800 border-2 border-wood w-full max-w-sm rounded-xl shadow-2xl p-6 relative z-10">
             <button
               onClick={() => setShowProfile(false)}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+              className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors"
             >
               <X size={20} />
             </button>
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <UserCircle /> Mis Preferencias
-            </h2>
+
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-16 w-16 rounded-full bg-wood text-white flex items-center justify-center font-black text-3xl shadow-inner">
+                {user.username.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-lg leading-tight">
+                  {user.full_name || user.username}
+                </h3>
+                <span className="text-xs font-medium text-wood bg-wood/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  {user.role}
+                </span>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <p className="text-sm text-neutral-400">
                 Hola,{" "}
                 <span className="text-wood font-bold">{user.full_name}</span>.
-                Configura aquí tus notificaciones.
+                Configura aquí tus preferencias.
               </p>
-              <label className="flex items-center gap-3 p-3 bg-neutral-900 rounded border border-neutral-700 cursor-pointer hover:border-wood transition-colors">
-                <input
-                  type="checkbox"
-                  checked={emailPref}
-                  onChange={(e) => setEmailPref(e.target.checked)}
-                  className="w-5 h-5 accent-wood"
-                />
-                <div className="flex flex-col">
-                  <span className="font-bold text-neutral-200 flex items-center gap-2">
-                    <Mail size={16} /> Email Informativo
-                  </span>
-                  <span className="text-xs text-neutral-500">
-                    Recibir avisos sobre el estado de la comunidad.
-                  </span>
-                </div>
-              </label>
+
+              {/* CONDICIONAL: Solo mostrar si el usuario tiene email */}
+              {user.email && (
+                <label className="flex items-center gap-3 p-3 bg-neutral-900 rounded border border-neutral-700 cursor-pointer hover:border-wood transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={emailPref}
+                    onChange={(e) => setEmailPref(e.target.checked)}
+                    className="w-5 h-5 accent-wood"
+                  />
+                  <div className="flex flex-col">
+                    <span className="font-bold text-neutral-200 flex items-center gap-2">
+                      <Mail size={16} /> Email Informativo
+                    </span>
+                    <span className="text-xs text-neutral-500">
+                      Recibir avisos sobre el estado de la comunidad.
+                    </span>
+                  </div>
+                </label>
+              )}
+
               <button
                 onClick={savePreferences}
                 disabled={savingPref}
-                className="w-full bg-wood hover:bg-wood-light text-white font-bold py-2 rounded mt-2 disabled:opacity-50"
+                className="w-full bg-wood hover:bg-wood-light text-white font-bold py-2 rounded mt-2 disabled:opacity-50 transition-colors shadow-lg"
               >
                 {savingPref ? "Guardando..." : "Guardar Cambios"}
               </button>
+
+              <div className="border-t border-neutral-700 pt-4 mt-2">
+                <button
+                  onClick={onLogout}
+                  className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 font-bold py-2 rounded hover:bg-red-900/20 transition-colors"
+                >
+                  <LogOut size={18} /> Cerrar Sesión
+                </button>
+              </div>
             </div>
           </div>
         </div>

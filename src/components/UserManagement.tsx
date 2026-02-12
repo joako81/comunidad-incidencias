@@ -106,11 +106,12 @@ const UserManagement: React.FC<UserManagementProps> = ({
     setFormValues({
       username: user.username,
       email: user.email,
-      full_name: user.full_name,
-      house_number: user.house_number,
+      full_name: user.full_name || "",
+      house_number: user.house_number || "",
       ...user.custom_fields,
     });
     setRole(user.role);
+    setReceiveEmails(user.receive_emails || false);
     setMessage(null);
     setViewMode("edit");
   };
@@ -130,7 +131,11 @@ const UserManagement: React.FC<UserManagementProps> = ({
     const fullName = formValues["full_name"]?.trim() || "";
     const houseNumber = formValues["house_number"]?.trim() || "";
 
-    if (!fullName || !houseNumber || !email || !username) {
+    // IMPORTANTE: Solo validamos email si está visible en la configuración
+    const isEmailActive =
+      fieldsConfig.find((f) => f.key === "email")?.active ?? true;
+
+    if (!fullName || !houseNumber || !username || (isEmailActive && !email)) {
       setMessage({
         type: "error",
         text: "Todos los campos visibles son obligatorios.",
@@ -178,7 +183,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
         receive_emails: receiveEmails,
         custom_fields,
         password: formValues["password"],
-        status: "active", // AQUÍ ESTÁ LA CLAVE: Nace activo
+        status: "active",
       });
       errorResult = error;
     } else {
@@ -190,6 +195,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
         house_number: houseNumber,
         role,
         custom_fields,
+        receive_emails: receiveEmails,
       });
       errorResult = error;
     }
@@ -213,6 +219,10 @@ const UserManagement: React.FC<UserManagementProps> = ({
       setTimeout(() => setViewMode("list"), 1500);
     }
   };
+
+  // Verificamos si el email está activo para renderizarlo
+  const isEmailActive =
+    fieldsConfig.find((f) => f.key === "email")?.active ?? true;
 
   return (
     <div className="w-full animate-in fade-in duration-300">
@@ -378,9 +388,12 @@ const UserManagement: React.FC<UserManagementProps> = ({
                             <div className="font-bold text-white">
                               {u.full_name}
                             </div>
-                            <div className="text-xs text-neutral-500">
-                              {u.email}
-                            </div>
+                            {/* Mostrar email solo si existe */}
+                            {u.email && (
+                              <div className="text-xs text-neutral-500">
+                                {u.email}
+                              </div>
+                            )}
                           </td>
                           <td className="p-3 font-mono text-wood">
                             {u.house_number}
@@ -472,25 +485,28 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 </div>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
-                  EMAIL <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Mail
-                    size={18}
-                    className="absolute left-3 top-3 text-neutral-500"
-                  />
-                  <input
-                    type="email"
-                    required
-                    value={formValues["email"] || ""}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-600 rounded-lg p-2.5 pl-10 text-white focus:border-wood outline-none"
-                    placeholder="correo@ejemplo.com"
-                  />
+              {/* RENDERIZADO CONDICIONAL DEL EMAIL */}
+              {isEmailActive && (
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
+                    EMAIL <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail
+                      size={18}
+                      className="absolute left-3 top-3 text-neutral-500"
+                    />
+                    <input
+                      type="email"
+                      required
+                      value={formValues["email"] || ""}
+                      onChange={(e) => handleChange("email", e.target.value)}
+                      className="w-full bg-neutral-900 border border-neutral-600 rounded-lg p-2.5 pl-10 text-white focus:border-wood outline-none"
+                      placeholder="correo@ejemplo.com"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-neutral-400 mb-1.5 ml-1">
@@ -566,6 +582,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 </p>
               </div>
 
+              {/* CAMPOS DINÁMICOS */}
               {fieldsConfig
                 .filter(
                   (f) =>
@@ -602,6 +619,21 @@ const UserManagement: React.FC<UserManagementProps> = ({
                   </div>
                 ))}
             </div>
+
+            {/* CHECKBOX NOTIFICACIONES (Solo si email activo) */}
+            {isEmailActive && (
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-neutral-300 font-bold text-sm cursor-pointer hover:text-white">
+                  <input
+                    type="checkbox"
+                    checked={receiveEmails}
+                    onChange={(e) => setReceiveEmails(e.target.checked)}
+                    className="accent-wood w-4 h-4"
+                  />
+                  <Mail size={16} /> Recibir notificaciones por email
+                </label>
+              </div>
+            )}
 
             <div className="pt-6 flex justify-end gap-4 border-t border-neutral-700">
               <button

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Incident, UserRole, IncidentViewConfig, Attachment } from "../types";
 import {
   Clock,
@@ -27,7 +27,6 @@ import {
   AlertTriangle,
   Home,
   Shield,
-  EyeOff,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { formatDistanceToNow, format } from "date-fns";
@@ -123,7 +122,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
-  // Auxiliares de permisos
   const isAdmin = userRole === "admin";
   const isSupervisor = userRole === "supervisor";
   const isStaff = isAdmin || isSupervisor;
@@ -168,14 +166,12 @@ const IncidentList: React.FC<IncidentListProps> = ({
         const isOwner = incident.user_id === userId;
         const canEditIncident = isOwner || isStaff;
 
-        // --- LÓGICA DE PRIVACIDAD ---
+        // --- LÓGICA DE PRIVACIDAD GRANULAR ---
         let showSensitiveInfo = false;
         if (viewConfig?.showUser) {
           if (isOwner || isStaff) {
-            // El dueño y el staff SIEMPRE ven la info si está el interruptor ON
             showSensitiveInfo = true;
           } else {
-            // Vecinos ven solo si es modo público
             showSensitiveInfo = viewConfig.userVisibilityMode === "public";
           }
         }
@@ -200,7 +196,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 >
                   {incident.status.replace("_", " ")}
                 </span>
-
                 {viewConfig?.showPriority && incident.priority && (
                   <span
                     className={clsx(
@@ -213,7 +208,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     <AlertTriangle size={10} /> {incident.priority}
                   </span>
                 )}
-
                 {viewConfig?.showCategory && (
                   <span
                     className={clsx(
@@ -224,7 +218,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                     {catStyle.icon} {incident.category || "General"}
                   </span>
                 )}
-
                 {canEditIncident && (
                   <button
                     onClick={() => onEdit(incident)}
@@ -276,7 +269,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                 </div>
               )}
 
-              {/* HISTORIAL DE NOTAS DEBAJO DE IMÁGENES */}
               {incident.notes && incident.notes.length > 0 && (
                 <div className="mt-2 mb-4 bg-neutral-50/50 dark:bg-neutral-900/20 p-3 rounded-xl border border-neutral-100 dark:border-neutral-800">
                   <span className="text-[10px] font-black uppercase text-neutral-400 mb-2 block tracking-widest">
@@ -306,8 +298,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                                 )}
                               </span>
                             </div>
-
-                            {/* BOTONES DE EDICIÓN Y BORRADO DE NOTAS */}
                             {canManageNote && (
                               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
@@ -348,28 +338,34 @@ const IncidentList: React.FC<IncidentListProps> = ({
               <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 font-black uppercase tracking-widest mt-auto pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 {viewConfig?.showLocation && (
                   <div className="flex items-center gap-1">
-                    <MapPin size={14} />
-                    {incident.location}
+                    <MapPin size={14} /> {incident.location}
                   </div>
                 )}
                 {viewConfig?.showDate && (
                   <div className="flex items-center gap-1">
-                    <Clock size={14} />
+                    <Clock size={14} />{" "}
                     {formatDistanceToNow(new Date(incident.created_at), {
                       addSuffix: true,
                       locale: es,
                     })}
                   </div>
                 )}
-                {/* --- RENDERIZADO DEL USUARIO CON DOBLE CHECK --- */}
+
+                {/* RENDERIZADO DEL USUARIO CON DOBLE CHECK Y GRANULARIDAD */}
                 {showSensitiveInfo ? (
-                  <div className="flex items-center gap-1 text-wood">
-                    <User size={14} />
-                    {incident.user_name || "Anónimo"} (
-                    {incident.user_house || "S/N"})
+                  <div className="flex items-center gap-2 text-wood">
+                    {viewConfig?.showUserName && (
+                      <div className="flex items-center gap-1">
+                        <User size={14} /> {incident.user_name || "Anónimo"}
+                      </div>
+                    )}
+                    {viewConfig?.showUserHouse && (
+                      <div className="flex items-center gap-1">
+                        <Home size={14} /> {incident.user_house || "S/N"}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  // Opcional: Icono de candado si está oculto (solo para dar feedback visual de que hay info oculta)
                   viewConfig?.showUser && (
                     <div
                       className="flex items-center gap-1 text-neutral-300"
@@ -433,7 +429,6 @@ const IncidentList: React.FC<IncidentListProps> = ({
                   </div>
                 )}
               </div>
-
               <div className="flex flex-col gap-2 mt-auto">
                 {(userRole === "admin" || userRole === "supervisor") && (
                   <>

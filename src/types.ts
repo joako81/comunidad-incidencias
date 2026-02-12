@@ -55,11 +55,17 @@ export interface Incident {
   notes?: IncidentNote[];
 }
 
+// --- CONFIGURACIÓN DE VISTA ---
 export interface IncidentViewConfig {
   showLocation: boolean;
   showDate: boolean;
-  showUser: boolean;
-  userVisibilityMode: "public" | "staff_only"; // NUEVO: Control de privacidad
+
+  // Bloque de Usuario y Privacidad
+  showUser: boolean; // Interruptor Maestro
+  showUserName: boolean; // Sub-opción Nombre
+  showUserHouse: boolean; // Sub-opción Casa
+  userVisibilityMode: "public" | "staff_only"; // Privacidad
+
   showPriority: boolean;
   showCategory: boolean;
 }
